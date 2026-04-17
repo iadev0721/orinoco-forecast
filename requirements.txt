@@ -1,0 +1,59 @@
+# ============================================================
+# requirements.txt — orinoco-forecast
+# Stack tecnológico completo según claude-informe.txt
+# Anclar versiones antes de producción con `pip freeze`
+# ============================================================
+
+# --- Núcleo científico ---
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+
+# --- Machine Learning clásico y preprocessing ---
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# --- Deep Learning: LSTM (core) ---
+tensorflow>=2.13.0
+keras>=2.13.0
+
+# --- Deep Learning: Transformer (plus) ---
+torch>=2.0.0
+torchvision>=0.15.0  # optional, para compatibilidad
+
+# --- Series temporales y estadística ---
+statsmodels>=0.14.0   # SARIMA, ADF, KPSS
+prophet>=1.1.4        # Facebook Prophet (baseline opcional)
+pmdarima>=2.0.0       # Auto-ARIMA
+
+# --- MLOps y tracking de experimentos ---
+mlflow>=2.5.0
+
+# --- Visualización ---
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# --- Procesamiento de datos científicos ---
+openpyxl>=3.1.0       # Leer .xlsx
+pyarrow>=12.0.0       # Leer/escribir .parquet
+netCDF4>=1.6.0        # Datos CHIRPS (.nc)
+xarray>=2023.6.0      # Datos NetCDF / ERA5
+
+# --- Calidad de código ---
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+
+# --- Testing ---
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# --- Notebooks ---
+jupyter>=1.0.0
+ipykernel>=6.25.0
+
+# --- Utilidades ---
+pyyaml>=6.0           # Leer config.yaml
+tqdm>=4.65.0          # Progress bars
+python-dotenv>=1.0.0  # Variables de entorno

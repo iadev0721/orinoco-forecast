@@ -1,0 +1,99 @@
+# ============================================================
+# config.yaml — orinoco-forecast
+# Configuración central del experimento
+# REGLA R7: Todos los hiperparámetros se leen desde aquí.
+# PROHIBIDO hardcodear valores en los scripts.
+# ============================================================
+
+# --- Configuración global del problema ---
+target_station: "palua"
+forecast_horizon: 7          # días a predecir (t+1 a t+7)
+lookback_window: 30          # días de historia como input (ajustar tras EDA PC-01-03)
+
+# --- Partición temporal (CRONOLÓGICA, nunca aleatoria) ---
+train_end: "2015-12-31"
+val_end: "2020-12-31"
+# test: 2021-01-01 a 2025-02-24 (implícito)
+
+# --- Rutas de datos ---
+data:
+  raw_original: "data/raw/dataset_original.xlsx"
+  raw_imputed: "data/raw/dataset_imputado_simpleml.csv"
+  audited: "data/processed/dataset_audited.parquet"
+  final: "data/processed/dataset_final.parquet"
+  enso: "data/external/enso_oni_index.csv"
+  chirps: "data/external/chirps_precipitation.nc"
+
+# --- Rutas de resultados ---
+results:
+  models_dir: "results/models/"
+  metrics_dir: "results/metrics/"
+  figures_dir: "results/figures/"
+  baseline_metrics: "results/metrics/baseline_metrics.json"
+
+# --- Grafo hidrológico de estaciones ---
+# REGLA R8: Nomenclatura oficial de estaciones
+stations:
+  ayacucho:
+    km_from_source: 0
+    order: 0
+    role: "upstream_far"
+    lag_to_palua_days: [16, 25]  # rango estimado, verificar con EDA
+  caicara:
+    km_from_source: 500
+    order: 1
+    role: "upstream_mid"
+    lag_to_palua_days: [6, 10]
+  ciudad_bolivar:
+    km_from_source: 900
+    order: 2
+    role: "upstream_near"
+    lag_to_palua_days: [1, 2]
+  palua:
+    km_from_source: 950
+    order: 3
+    role: "target_default"
+
+# --- Hiperparámetros: LSTM (Keras) --- MODELO CORE
+lstm:
+  units: [64, 32]
+  dropout: 0.2
+  learning_rate: 0.001
+  batch_size: 64
+  max_epochs: 200
+  patience: 15               # EarlyStopping
+  validation_split: 0.0      # Usar split explícito, no automático
+
+# --- Hiperparámetros: Transformer (PyTorch) --- PLUS ACADÉMICO
+transformer:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  dim_feedforward: 128
+  dropout: 0.1
+  batch_size: 32             # Máximo para RTX 3060 6GB VRAM
+  max_epochs: 100
+  patience: 10
+  learning_rate: 0.0001
+
+# --- Reproducibilidad ---
+seed: 42
+
+# --- Hardware ---
+gpu:
+  memory_growth: true        # tf.config.experimental.set_memory_growth
+  # batch_size LSTM recomendado: 64
+  # batch_size Transformer máximo: 32
+
+# --- Métricas de éxito (umbrales) ---
+thresholds:
+  nse_acceptable: 0.80
+  nse_good: 0.90
+  kge_acceptable: 0.75
+  peak_timing_error_days: 3  # máximo error en timing de picos
+
+# --- Restricciones físicas ---
+physical:
+  min_level_m: 0.0           # Nivel nunca negativo
+  max_level_multiplier: 1.15 # Predicciones no exceden máx histórico + 15%
+  max_daily_change_m: 1.5    # Cambio diario > 1.5m es sospechoso

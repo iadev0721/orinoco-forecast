@@ -1,0 +1,946 @@
+
+
+# MARCO DOCUMENTAL Y METODOLÓGICO MAESTRO
+## Modelado Predictivo del Nivel del Río Orinoco
+
+---
+
+## PARTE I: DIAGNÓSTICO CRÍTICO DEL ESTADO ACTUAL
+
+Antes de construir, debo ser honesto contigo sobre lo que encontré en tu PDF de brainstorming. Has hecho un trabajo excelente de exploración, pero hay **cuatro errores metodológicos heredados** que, si no se corrigen ahora, contaminarán todo el trabajo posterior. Los formalizo aquí para que los agentes programadores nunca los repitan.
+
+### Errores Heredados Detectados
+
+**Error #1: Data Leakage en el Escalado (Confirmado en el PDF, página 2)**
+Tu conversación anterior ya lo detectó, pero el código sugerido en la página 32 del PDF *vuelve a cometerlo*. El `MinMaxScaler` se aplica a `df` completo antes de particionar. Esto no es un detalle menor: invalida cualquier métrica que reportes porque el scaler "vio" los mínimos y máximos del set de test.
+
+**Error #2: La imputación con "Simple ML" es una caja negra no auditada**
+Tienes dos versiones del dataset (original e imputado) pero en ningún momento del brainstorming se realizó una auditoría comparativa rigurosa. No sabes qué método usó "Simple ML" internamente (¿KNN? ¿regresión? ¿interpolación?), no sabes en qué periodos actuó, no sabes si introdujo autocorrelaciones artificiales, y no sabes si aplanó eventos extremos. Esto es un riesgo existencial para la tesis.
+
+**Error #3: Inconsistencia en la decisión de frameworks**
+El brainstorming oscila entre PyTorch y TensorFlow/Keras múltiples veces. La conversación concluye con "LSTM en Keras, Transformer en PyTorch", pero luego se sigue escribiendo código en Keras con errores de diseño. La decisión final que formalizaré aquí será definitiva y justificada.
+
+**Error #4: Ausencia total de un modelo baseline antes de cualquier red neuronal**
+El PDF lo menciona como recomendación (página 2, punto 3) pero nunca se implementa. Ningún agente debe tocar Keras o PyTorch hasta que el baseline estadístico esté entrenado, evaluado y documentado.
+
+---
+
+## PARTE II: ESTRUCTURA DEL REPOSITORIO
+
+```
+orinoco-forecast/
+│
+├── README.md                          # Visión ejecutiva y científica
+├── AGENT_RULES.md                     # Reglas para agentes de IA programadores
+├── config.yaml                        # Configuración central del experimento
+│
+├── data/
+│   ├── raw/
+│   │   ├── dataset_original.xlsx      # Datos con brechas (INTOCABLE)
+│   │   └── dataset_imputado_simpleml.csv  # Datos imputados (BAJO SOSPECHA)
+│   ├── processed/
+│   │   ├── dataset_audited.parquet    # Resultado de Fase 0
+│   │   └── dataset_final.parquet      # Post feature-engineering
+│   └── external/
+│       ├── enso_oni_index.csv         # NOAA - Índice El Niño
+│       └── chirps_precipitation.nc    # Lluvias satelitales (si aplica)
+│
+├── notebooks/
+│   ├── 00_imputation_audit.ipynb      # Auditoría de la imputación
+│   ├── 01_eda.ipynb                   # Análisis Exploratorio
+│   ├── 02_feature_engineering.ipynb   # Ingeniería de características
+│   ├── 03_baseline.ipynb              # Modelos baseline
+│   ├── 04_lstm_keras.ipynb            # Modelo LSTM
+│   ├── 05_transformer_pytorch.ipynb   # Modelo Transformer (Plus)
+│   └── 06_evaluation_final.ipynb      # Evaluación comparativa
+│
+├── src/
+│   ├── __init__.py
+│   ├── data/
+│   │   ├── loader.py                  # Carga y validación de datos
+│   │   ├── splitter.py                # Partición cronológica
+│   │   ├── scaler.py                  # Escalado sin data leakage
+│   │   └── windower.py                # Generación de ventanas deslizantes
+│   ├── features/
+│   │   ├── station_graph.py           # Grafo jerárquico de estaciones
+│   │   ├── temporal_features.py       # Features temporales (día del año, etc.)
+│   │   └── lag_calculator.py          # Cálculo de lag times hidrológicos
+│   ├── models/
+│   │   ├── naive_baseline.py          # Modelo ingenuo
+│   │   ├── statistical_baseline.py    # SARIMA / Prophet
+│   │   ├── lstm_model.py              # LSTM en Keras
+│   │   └── transformer_model.py       # Transformer en PyTorch
+│   ├── evaluation/
+│   │   ├── metrics.py                 # NSE, KGE, MAE, RMSE
+│   │   ├── scenario_evaluator.py      # Evaluación por régimen hidrológico
+│   │   └── visualization.py           # Gráficas de publicación
+│   └── utils/
+│       ├── gpu_config.py              # Configuración RTX 3060
+│       └── reproducibility.py         # Seeds y determinismo
+│
+├── docs/
+│   ├── 00_MANIFESTO_IMPUTATION_AUDIT.md
+│   ├── 01_MANIFESTO_EDA.md
+│   ├── 02_MANIFESTO_PREPROCESSING.md
+│   ├── 03_MANIFESTO_MODELING.md
+│   ├── 04_MANIFESTO_EVALUATION.md
+│   └── STATION_TOPOLOGY.md            # Documento del grafo hidrológico
+│
+├── tests/
+│   ├── test_no_data_leakage.py
+│   ├── test_window_integrity.py
+│   └── test_physical_constraints.py   # Nivel >= 0, monotonía del río
+│
+└── results/
+    ├── models/                        # Pesos guardados (.h5, .pt)
+    ├── metrics/                       # CSVs con resultados por escenario
+    └── figures/                       # Gráficas de publicación
+```
+
+---
+
+## PARTE III: CONTENIDO DE LOS ARCHIVOS CLAVE
+
+### 3.1 — README.md
+
+```markdown
+# 🌊 Orinoco Forecast: Predicción del Nivel del Río Orinoco
+
+## Visión Científica
+Modelado predictivo multiestación del nivel hidrométrico del río Orinoco
+con horizonte de 7 días (t+7), utilizando una arquitectura progresiva:
+Baseline Estadístico → LSTM (Keras) → Transformer (PyTorch).
+
+## Tesis Central
+Los niveles aguas arriba del Orinoco (Puerto Ayacucho, Caicara, 
+Ciudad Bolívar) contienen información predictiva suficiente para 
+anticipar el nivel en Palúa con un horizonte de 7 días, superando 
+significativamente un modelo naive y un baseline estadístico, 
+particularmente durante los períodos de transición hidrológica 
+(ascenso mayo-julio, descenso octubre-diciembre).
+
+## Estación Objetivo Configurable
+El sistema permite seleccionar cualquier estación como target de 
+predicción. El grafo hidrológico (`STATION_TOPOLOGY.md`) determina 
+automáticamente qué estaciones actúan como predictores (aguas arriba) 
+y cuáles se excluyen o tratan como contexto limitado (aguas abajo).
+
+## Dataset
+- **Rango temporal:** 1974-01-01 a 2025-02-24 (~18,683 registros diarios)
+- **Estaciones:** Puerto Ayacucho, Caicara, Ciudad Bolívar, Palúa
+- **Versiones:** Original (con brechas) e Imputada (Simple ML, bajo auditoría)
+
+## Hardware
+- GPU: NVIDIA RTX 3060 (6GB VRAM)
+- Restricción: batch_size ≤ 32 para Transformers
+
+## Estructura de Ejecución
+Fase 0 → Auditoría de imputación (¿la señal sobrevivió?)
+Fase 1 → EDA y Feature Engineering
+Fase 2 → Baseline (Naive + SARIMA)
+Fase 3 → LSTM Multivariado Multi-Step (Keras)
+Fase 4 → Transformer (PyTorch) [Plus académico]
+Fase 5 → Evaluación comparativa por régimen hidrológico
+```
+
+---
+
+### 3.2 — AGENT_RULES.md (Reglas para Agentes de IA)
+
+```markdown
+# AGENT_RULES.md — Instrucciones para Agentes Programadores
+
+## IDENTIDAD
+Estás trabajando en una tesis de pregrado sobre predicción hidrológica.
+El código que escribas debe ser DEFENDIBLE ante un jurado académico.
+Cada decisión debe tener una justificación técnica e hidrológica.
+
+## REGLAS ABSOLUTAS (NUNCA VIOLAR)
+
+### R1: CERO DATA LEAKAGE
+- El MinMaxScaler (o cualquier scaler) se ajusta EXCLUSIVAMENTE 
+  con datos de entrenamiento.
+- Las fechas de corte son:
+  - Train: 1974-01-01 a 2015-12-31
+  - Validation: 2016-01-01 a 2020-12-31
+  - Test: 2021-01-01 a 2025-02-24
+- El scaler se guarda con joblib y se reutiliza en inferencia.
+- PROHIBIDO usar df.describe() o df.info() sobre el dataset 
+  completo para tomar decisiones de preprocesamiento que 
+  afecten al modelo.
+
+### R2: REPRODUCIBILIDAD
+- Toda ejecución debe fijar seeds:
+  ```python
+  import numpy as np
+  import tensorflow as tf
+  import random
+  SEED = 42
+  np.random.seed(SEED)
+  tf.random.set_seed(SEED)
+  random.seed(SEED)
+  ```
+- Documentar versiones: Python, TensorFlow, PyTorch, CUDA, cuDNN.
+
+### R3: BASELINE PRIMERO
+- NINGÚN notebook de modelado (04, 05) puede ejecutarse sin 
+  que exista un archivo `results/metrics/baseline_metrics.json`.
+- El LSTM debe SUPERAR al baseline. Si no lo hace, el agente debe 
+  diagnosticar por qué antes de avanzar.
+
+### R4: RESPETO FÍSICO
+- El nivel del río NUNCA puede ser negativo.
+- Las predicciones deben pasar por un clamp: max(0, predicción).
+- Las predicciones durante aguas altas no deben exceder el 
+  máximo histórico + 15% (margen para eventos extremos).
+- Alertar si la derivada predicha implica cambios > 1.5 m/día 
+  (físicamente improbable sin el Caroní).
+
+### R5: GESTIÓN DE MEMORIA GPU
+```python
+# OBLIGATORIO al inicio de cualquier script con TensorFlow
+import tensorflow as tf
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
+# Para PyTorch (Transformer)
+import torch
+torch.cuda.empty_cache()
+# batch_size MÁXIMO: 32 para Transformers
+# batch_size RECOMENDADO: 64 para LSTM
+```
+
+### R6: CONVENCIONES DE CÓDIGO
+- Idioma del código: Inglés (variables, funciones, docstrings).
+- Idioma de los comentarios: Español (para la tesis).
+- Type hints obligatorios en todas las funciones.
+- Docstrings en formato Google style.
+- Logging con el módulo `logging`, NO con `print()`.
+- Formato: Black + isort.
+
+### R7: CONFIGURACIÓN CENTRALIZADA
+- Todos los hiperparámetros deben leerse de `config.yaml`.
+- PROHIBIDO hardcodear valores dentro de los scripts.
+```yaml
+# config.yaml
+target_station: "palua"
+forecast_horizon: 7
+lookback_window: 30
+train_end: "2015-12-31"
+val_end: "2020-12-31"
+lstm:
+  units: [64, 32]
+  dropout: 0.2
+  learning_rate: 0.001
+  batch_size: 64
+  max_epochs: 200
+  patience: 15
+transformer:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  batch_size: 32
+  max_epochs: 100
+  patience: 10
+```
+
+### R8: NOMENCLATURA DE ESTACIONES
+```python
+STATION_ORDER = {
+    "ayacucho": {"km_from_source": 0, "order": 0},
+    "caicara": {"km_from_source": 500, "order": 1},
+    "ciudad_bolivar": {"km_from_source": 900, "order": 2},
+    "palua": {"km_from_source": 950, "order": 3}
+}
+```
+
+## PREGUNTAS DE CONTROL POR FASE
+Cada notebook debe incluir al final una sección "## Preguntas de Control"
+donde el agente responda explícitamente a las preguntas definidas 
+en el manifiesto correspondiente de docs/.
+```
+
+---
+
+## PARTE IV: MANIFIESTOS POR FASE
+
+### 4.0 — `docs/00_MANIFESTO_IMPUTATION_AUDIT.md`
+
+#### Propósito
+Determinar si los datos imputados con "Simple ML" son confiables para entrenar un modelo de deep learning sobre un sistema hidrodinámico, o si la imputación introdujo artefactos que degradan la señal.
+
+#### Análisis Crítico: ¿Fue "Simple ML" la decisión correcta?
+
+**El problema fundamental:** "Simple ML" es un término genérico que puede referirse a cualquier cosa desde interpolación lineal hasta Random Forest. Para un río como el Orinoco, donde los datos faltantes pueden coincidir con eventos extremos (el sensor falla más durante crecidas por sobrecarga eléctrica o vandalismo), un método de imputación que no entienda la física del río puede:
+
+1. **Aplanar picos de crecida:** Si el modelo de imputación suaviza los valores durante brechas en agosto-septiembre (aguas altas), estás enseñándole al LSTM que las crecidas son menos severas de lo que realmente son.
+
+2. **Fabricar autocorrelación artificial:** Si el método usó los valores vecinos para rellenar (lo más probable), la serie imputada tendrá una autocorrelación más alta que la real. Esto hará que el LSTM parezca mejor de lo que realmente es durante evaluación, porque la señal fue "suavizada" artificialmente.
+
+3. **Destruir la correlación cruzada entre estaciones:** Si las brechas en Caicara y Ciudad Bolívar no coinciden temporalmente, pero la imputación las rellenó con métodos independientes, el desfase natural (lag) entre estaciones puede haberse distorsionado.
+
+4. **Sesgo de selección temporal:** Si las brechas son más frecuentes en ciertos años o estaciones del año (ej: los sensores fallan más en la temporada de lluvias), la imputación introduce un sesgo sistemático exactamente donde más importa.
+
+#### Preguntas de Control para el Agente
+
+```
+PC-00-01: ¿Cuántas brechas tiene cada estación en el dataset original? 
+          Reportar: conteo total de NaN, brecha más larga consecutiva, 
+          y distribución temporal de las brechas (¿se concentran en 
+          algún mes/década?).
+
+PC-00-02: ¿Coinciden temporalmente las brechas entre estaciones? 
+          Si Caicara y Ciudad Bolívar tienen brechas simultáneas, 
+          el sistema de "radares" pierde su poder predictivo en 
+          esos períodos.
+
+PC-00-03: Comparar la distribución estadística (media, varianza, 
+          curtosis, percentiles 5/95) entre datos originales y 
+          datos imputados POR ESTACIÓN y POR MES. 
+          ¿La imputación aplanó los extremos?
+
+PC-00-04: Calcular la función de autocorrelación (ACF) y 
+          autocorrelación parcial (PACF) para ambas versiones 
+          hasta lag=60 días. ¿La versión imputada tiene una 
+          autocorrelación artificialmente más alta?
+
+PC-00-05: Calcular la correlación cruzada (cross-correlation) 
+          entre pares de estaciones (Caicara→Ciudad Bolívar, 
+          Ciudad Bolívar→Palúa) en ambas versiones. 
+          ¿El lag óptimo cambió tras la imputación?
+
+PC-00-06: Visualizar superpuesto: datos originales (con huecos) 
+          vs datos imputados, ZOOM en las brechas más largas. 
+          ¿Los valores imputados son físicamente plausibles?
+
+PC-00-07: VEREDICTO: ¿Usar la versión imputada, re-imputar con 
+          un método más sofisticado (ej: MICE, GP interpolation), 
+          o entrenar solo con los datos originales descartando 
+          ventanas que contienen NaN?
+```
+
+#### Pruebas de Validación de la Imputación
+
+| Test | Descripción | Criterio de Aprobación |
+|------|-------------|----------------------|
+| T1 - Distribución | Test de Kolmogorov-Smirnov entre distribuciones original vs imputada por estación | p-value > 0.05 |
+| T2 - Estacionalidad | Comparar amplitud del ciclo anual promedio (original vs imputado) | Diferencia < 5% |
+| T3 - Extremos | Comparar percentil 95 y percentil 5 (original vs imputado) | Diferencia < 10% |
+| T4 - Lag cruzado | Lag óptimo entre estaciones consecutivas | Diferencia ≤ 1 día |
+| T5 - Varianza local | Varianza en ventanas de 30 días durante períodos imputados vs períodos reales | Ratio ∈ [0.7, 1.3] |
+
+---
+
+### 4.1 — `docs/01_MANIFESTO_EDA.md`
+
+#### Propósito
+Entender la naturaleza hidrológica de los datos antes de modelar. No se trata solo de graficar: el EDA debe producir decisiones concretas sobre la ingeniería de características.
+
+#### Preguntas de Control
+
+```
+PC-01-01: ¿Cuál es la estacionalidad dominante? Descomponer cada 
+          estación con STL (Seasonal-Trend decomposition using LOESS). 
+          Reportar: período dominante, amplitud del ciclo, 
+          y componente residual.
+
+PC-01-02: ¿Es la serie estacionaria? Aplicar test ADF 
+          (Augmented Dickey-Fuller) y KPSS a cada estación, 
+          tanto en niveles como en primeras diferencias.
+
+PC-01-03: ¿Cuál es el lag time empírico entre estaciones? 
+          Calcular la cross-correlation y reportar el lag 
+          (en días) donde se maximiza la correlación para:
+          - Ayacucho → Caicara
+          - Caicara → Ciudad Bolívar
+          - Ciudad Bolívar → Palúa
+          - Ayacucho → Palúa (lag total del sistema)
+
+PC-01-04: ¿Existe no-estacionariedad climática? ¿Los máximos 
+          anuales muestran tendencia creciente/decreciente 
+          a lo largo de 50 años? (Evidencia de cambio climático)
+
+PC-01-05: ¿Cómo se distribuyen los errores potenciales? 
+          Boxplot por mes y por estación. Identificar outliers 
+          y clasificarlos: ¿sensor defectuoso o evento real?
+
+PC-01-06: ¿Existen cambios de régimen (regime changes)? 
+          ¿Hay un punto de quiebre donde el comportamiento 
+          del río cambió significativamente? (ej: construcción 
+          de represas, deforestación)
+
+PC-01-07: Calcular la entropía de muestra (Sample Entropy) 
+          para cuantificar la complejidad/predictibilidad 
+          de cada estación. ¿Cuál es más "predecible"?
+```
+
+---
+
+### 4.2 — `docs/02_MANIFESTO_PREPROCESSING.md`
+
+#### Propósito
+Transformar los datos crudos en tensores listos para el modelado, sin introducir sesgo.
+
+#### El Pipeline Anti-Leakage
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    DATASET COMPLETO                      │
+│                  (1974 - 2025-02-24)                     │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+              ┌─────────▼─────────┐
+              │  SPLIT CRONOLÓGICO │ ← PRIMER PASO, antes de TODO
+              └─────────┬─────────┘
+                        │
+          ┌─────────────┼──────────────┐
+          ▼             ▼              ▼
+     ┌─────────┐  ┌──────────┐  ┌──────────┐
+     │  TRAIN  │  │   VAL    │  │   TEST   │
+     │ 74-2015 │  │ 2016-20  │  │ 2021-25  │
+     └────┬────┘  └────┬─────┘  └────┬─────┘
+          │            │             │
+          ▼            │             │
+    ┌──────────┐       │             │
+    │ FIT      │       │             │
+    │ Scaler   │       │             │
+    └────┬─────┘       │             │
+         │             │             │
+         ▼             ▼             ▼
+    ┌──────────┐  ┌──────────┐  ┌──────────┐
+    │TRANSFORM │  │TRANSFORM │  │TRANSFORM │
+    │ (scaler) │  │ (scaler) │  │ (scaler) │
+    └────┬─────┘  └────┬─────┘  └────┬─────┘
+         │             │             │
+         ▼             ▼             ▼
+    ┌──────────┐  ┌──────────┐  ┌──────────┐
+    │ VENTANAS │  │ VENTANAS │  │ VENTANAS │
+    │ (X,y)    │  │ (X,y)    │  │ (X,y)    │
+    └──────────┘  └──────────┘  └──────────┘
+```
+
+#### Preguntas de Control
+
+```
+PC-02-01: ¿El scaler se ajustó SOLO con datos de train? 
+          Verificar que scaler.data_min_ y scaler.data_max_ 
+          corresponden al rango 1974-2015.
+
+PC-02-02: ¿Las ventanas en los bordes train/val y val/test 
+          están correctamente manejadas? La última ventana de 
+          train NO debe contener días de val como target.
+
+PC-02-03: ¿La ventana de entrada (lookback) es suficiente 
+          para capturar el lag máximo del sistema? 
+          Si Ayacucho→Palúa tiene lag de 25 días, 
+          lookback debe ser ≥ 25.
+
+PC-02-04: ¿Se incluyeron features temporales? 
+          - day_of_year (codificado como sin/cos para circularidad)
+          - Opcionalmente: mes, estación del año
+          NOTA: NO incluir el año como feature (leakage temporal).
+
+PC-02-05: Verificar que no hay NaN en los tensores finales.
+          assert np.isnan(X_train).sum() == 0
+```
+
+---
+
+### 4.3 — `docs/03_MANIFESTO_MODELING.md`
+
+#### Propósito
+Justificar y ejecutar la progresión técnica de modelado.
+
+#### Justificación de la Progresión: Baseline → LSTM → Transformer
+
+**Nivel 0 — Naive Baseline (Modelo Ingenuo):**
+- `ŷ(t+h) = y(t)` para h = 1,...,7
+- El nivel en 7 días será igual al nivel de hoy.
+- Justificación (Hyndman, 2018): Todo modelo debe demostrar que supera la predicción más simple posible. Si no lo logra, el modelo es inútil independientemente de su complejidad.
+
+**Nivel 0.5 — Seasonal Naive:**
+- `ŷ(t+h) = y(t+h - 365)` 
+- El nivel en 7 días será igual al nivel que tenía el río hace exactamente un año en esa misma fecha.
+- Justificación: Captura la estacionalidad dominante del Orinoco.
+
+**Nivel 1 — SARIMA:**
+- Justificación: Modelo estadístico clásico que captura autocorrelación y estacionalidad. Es el benchmark estándar en hidrología (Hyndman, 2018). Si el LSTM no supera a SARIMA, no estás justificando la complejidad computacional de deep learning.
+
+**Nivel 2 — LSTM Multivariado (Keras):**
+- Justificación: Las redes LSTM (Hochreiter & Schmidhuber, 1997) son especialmente aptas para este problema porque:
+  1. Capturan dependencias a largo plazo (la memoria de la celda retiene el estado del ciclo hidrológico).
+  2. Procesan naturalmente la entrada multivariada (4 estaciones simultáneas).
+  3. La compuerta de olvido permite "descartar" información de meses atrás cuando la señal reciente es más relevante.
+  4. Son computacionalmente viables en tu RTX 3060 (< 1GB VRAM).
+
+**Nivel 3 — Transformer para Series Temporales (PyTorch) [Plus]:**
+- Justificación: El mecanismo de self-attention permite al modelo ponderar directamente qué días del pasado son más relevantes para cada día del futuro, sin la restricción secuencial del LSTM. Específicamente:
+  1. Puede descubrir relaciones no contiguas (ej: el nivel de hace 23 días en Ayacucho es más relevante que el de hace 3 días en Palúa).
+  2. Paralelizable (entrena más rápido por época que LSTM).
+  3. Requiere positional encoding para entender el orden temporal.
+  4. **RIESGO:** Con 6GB VRAM, batch_size debe ser ≤ 32 y d_model ≤ 64.
+
+#### Arquitectura LSTM Recomendada
+
+```
+Input: (batch, 30, n_features)
+│
+├── LSTM(64, return_sequences=True)
+│   └── Dropout(0.2)
+├── LSTM(32, return_sequences=False)
+│   └── Dropout(0.2)
+├── Dense(32, activation='relu')
+└── Dense(7, activation='linear')    ← Multi-step: 7 días
+
+Output: (batch, 7)
+```
+
+#### Preguntas de Control
+
+```
+PC-03-01: ¿El modelo Naive fue implementado y evaluado ANTES 
+          de cualquier red neuronal?
+
+PC-03-02: ¿El LSTM supera al baseline en TODAS las métricas 
+          (MAE, RMSE, NSE) sobre el set de TEST?
+
+PC-03-03: ¿El modelo muestra el "efecto sombra" (shadow effect / 
+          lag-1 copying)? Calcular la correlación entre 
+          predicciones y el valor real retrasado 1 día. 
+          Si corr(ŷ(t), y(t-1)) > corr(ŷ(t), y(t)), 
+          el modelo está copiando, no prediciendo.
+
+PC-03-04: ¿Qué pasa al variar el lookback window? 
+          Experimentar con [14, 21, 30, 45, 60] días. 
+          ¿Hay un punto de rendimiento decreciente?
+
+PC-03-05: ¿El modelo Uni-variado vs Multi-variado muestra 
+          diferencia significativa? Entrenar LSTM solo con Palúa 
+          vs LSTM con las 4 estaciones. ¿Cuánto aportan los "radares"?
+
+PC-03-06: ¿Las curvas de aprendizaje (train_loss vs val_loss) 
+          muestran overfitting? ¿El EarlyStopping se activó?
+```
+
+---
+
+### 4.4 — `docs/04_MANIFESTO_EVALUATION.md`
+
+#### Propósito
+Definir rigurosamente qué significa "éxito" para este modelo.
+
+#### Métricas Hidrológicas (No solo ML)
+
+**Métricas estándar ML:**
+- **MAE** (Error Absoluto Medio): Interpretable en metros. "El modelo se equivoca en promedio X metros."
+- **RMSE** (Raíz del Error Cuadrático Medio): Penaliza errores grandes. Útil para detectar fallos catastróficos.
+- **MAPE** (Error Porcentual Absoluto Medio): Problemático en aguas bajas (niveles cercanos a 0 generan MAPE → ∞). Usar con precaución.
+
+**Métricas hidrológicas específicas (elevan la tesis):**
+
+- **NSE — Nash-Sutcliffe Efficiency** (Nash & Sutcliffe, 1970):
+
+$$NSE = 1 - \frac{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}{\sum_{i=1}^{n}(y_i - \bar{y})^2}$$
+
+  - NSE = 1: Predicción perfecta.
+  - NSE = 0: El modelo no es mejor que predecir la media histórica.
+  - NSE < 0: El modelo es peor que la media.
+  - **Criterio de éxito:** NSE > 0.80 (aceptable), NSE > 0.90 (bueno).
+  - **Por qué usar NSE:** Es EL estándar en hidrología. Cualquier jurado de ingeniería civil o ambiental lo reconoce.
+
+- **KGE — Kling-Gupta Efficiency** (Gupta et al., 2009):
+
+$$KGE = 1 - \sqrt{(r-1)^2 + (\alpha-1)^2 + (\beta-1)^2}$$
+
+  Donde $r$ = correlación de Pearson, $\alpha$ = ratio de desviaciones estándar, $\beta$ = ratio de medias.
+  - **Ventaja sobre NSE:** Descompone el error en tres componentes (timing, variabilidad, sesgo), permitiendo diagnosticar *por qué* falla el modelo.
+  - **Criterio de éxito:** KGE > 0.75.
+
+- **Peak Timing Error (PTE):** Diferencia en días entre el pico predicho y el pico real durante eventos de crecida. Crítico para alertas tempranas.
+
+- **Volume Error Ratio:** $\frac{\sum \hat{y}}{\sum y}$ durante eventos de crecida. ¿El modelo subestima o sobreestima el volumen de agua?
+
+#### Evaluación por Régimen Hidrológico
+
+```python
+def classify_regime(date: pd.Timestamp) -> str:
+    """Clasifica cada fecha en su régimen hidrológico."""
+    month = date.month
+    if month in [3, 4]:           # Marzo-Abril
+        return "aguas_bajas"
+    elif month in [5, 6, 7]:      # Mayo-Julio
+        return "ascenso"
+    elif month in [8, 9]:         # Agosto-Septiembre
+        return "aguas_altas"
+    elif month in [10, 11, 12]:   # Octubre-Diciembre
+        return "descenso"
+    else:                         # Enero-Febrero
+        return "aguas_bajas"
+```
+
+**Tabla de Resultados Exigida:**
+
+| Métrica | Global | Aguas Bajas | Ascenso | Aguas Altas | Descenso |
+|---------|--------|-------------|---------|-------------|----------|
+| MAE (m) | — | — | — | — | — |
+| RMSE (m) | — | — | — | — | — |
+| NSE | — | — | — | — | — |
+| KGE | — | — | — | — | — |
+
+Cada modelo (Naive, SARIMA, LSTM, Transformer) debe llenar su propia tabla. La comparación visual de estas tablas es el arma definitiva en la defensa de tesis.
+
+#### Preguntas de Control
+
+```
+PC-04-01: ¿En qué régimen hidrológico tiene el modelo su 
+          PEOR rendimiento? ¿Es consistente con la hipótesis 
+          del "punto ciego" del Caroní?
+
+PC-04-02: ¿El NSE del LSTM es > 0.80 en todos los regímenes?
+
+PC-04-03: ¿El modelo comete errores sistemáticos? 
+          Graficar residuos vs tiempo. ¿Los errores se 
+          concentran en algún período?
+
+PC-04-04: ¿El modelo predice correctamente el TIMING 
+          de los picos anuales? Peak Timing Error < 3 días.
+
+PC-04-05: ¿El LSTM supera significativamente al SARIMA? 
+          Si la mejora es < 5% en MAE, ¿justifica la 
+          complejidad computacional?
+```
+
+---
+
+### 4.5 — `docs/STATION_TOPOLOGY.md`
+
+#### El Grafo Hidrológico: Sistema Target-Agnostic
+
+```
+                    AGUAS ARRIBA
+                        │
+             ┌──────────┴──────────┐
+             │   Puerto Ayacucho   │  km 0 (referencia)
+             │   (Radar Lejano)    │
+             └──────────┬──────────┘
+                        │ ~500 km
+                        │ lag estimado: 10-15 días
+             ┌──────────┴──────────┐
+             │      Caicara        │
+             │   (Radar Medio)     │
+             └──────────┬──────────┘
+                        │ ~400 km
+                        │ lag estimado: 5-8 días
+             ┌──────────┴──────────┐
+             │   Ciudad Bolívar    │
+             │   (Radar Cercano)   │
+             └──────────┬──────────┘
+                        │ ~50 km
+                        │ lag estimado: 1-2 días
+             ┌──────────┴──────────┐
+             │       Palúa         │  ← CONFLUENCIA CARONÍ
+             │  (Target Default)   │     (punto ciego)
+             └─────────────────────┘
+                        │
+                    AGUAS ABAJO
+```
+
+#### Lógica de Selección Automática de Features
+
+```python
+def get_predictors(target: str, station_graph: dict) -> dict:
+    """
+    Dado un target, retorna las estaciones predictoras 
+    y su rol basado en posición relativa.
+    
+    Reglas:
+    - Estaciones AGUAS ARRIBA del target: PREDICTORES PRIMARIOS
+      (contienen información causal del futuro del target)
+    - El TARGET mismo: PREDICTOR (autoregresivo)
+    - Estaciones AGUAS ABAJO: EXCLUIDAS o CONTEXTO DÉBIL
+      (no tienen poder predictivo causal; el agua no fluye 
+       hacia arriba)
+    """
+    target_order = station_graph[target]["order"]
+    
+    predictors = {
+        "primary": [],    # Aguas arriba
+        "self": target,   # Autoregresivo
+        "excluded": []    # Aguas abajo
+    }
+    
+    for station, info in station_graph.items():
+        if station == target:
+            continue
+        if info["order"] < target_order:
+            predictors["primary"].append(station)
+        else:
+            predictors["excluded"].append(station)
+    
+    return predictors
+
+
+# Ejemplo: target = "ciudad_bolivar"
+# primary: ["ayacucho", "caicara"]
+# self: "ciudad_bolivar"
+# excluded: ["palua"]
+```
+
+#### Configuración de Lag Times
+
+Los lag times entre estaciones NO deben adivinarse: deben calcularse empíricamente durante el EDA (PC-01-03) mediante la función de correlación cruzada. Sin embargo, como guía inicial basada en la hidrología del Orinoco:
+
+| Par de estaciones | Lag estimado (días) | Fuente |
+|---|---|---|
+| Ayacucho → Caicara | 10-15 | Velocidad media del flujo en el tramo |
+| Caicara → Ciudad Bolívar | 5-8 | Cruz-correlación empírica |
+| Ciudad Bolívar → Palúa | 1-2 | Proximidad geográfica |
+| Ayacucho → Palúa (total) | 16-25 | Suma de tramos |
+
+**Implicación para el lookback window:** Si el lag total Ayacucho→Palúa es ~25 días, el lookback window mínimo debe ser 25 días. La recomendación de 30 días en el brainstorming es correcta, pero debe verificarse empíricamente. Si el lag resulta ser mayor, ajustar a 45 o 60 días.
+
+---
+
+## PARTE V: DIMENSIONES DE ANÁLISIS CRÍTICO PROFUNDIZADO
+
+### 5.1 — Ingeniería de Características: Más Allá de los Lags
+
+Las ventanas deslizantes crudas no son la única forma de codificar la información temporal. El agente debe considerar:
+
+**Features derivadas obligatorias:**
+
+```python
+# 1. Codificación cíclica del día del año
+df['day_sin'] = np.sin(2 * np.pi * df.index.dayofyear / 365.25)
+df['day_cos'] = np.cos(2 * np.pi * df.index.dayofyear / 365.25)
+
+# 2. Tasa de cambio (velocidad del río)
+df['palua_delta_1d'] = df['palua'].diff(1)   # ¿subiendo o bajando?
+df['palua_delta_7d'] = df['palua'].diff(7)   # tendencia semanal
+
+# 3. Estadísticas rodantes (rolling features)
+df['palua_rolling_mean_7'] = df['palua'].rolling(7).mean()
+df['palua_rolling_std_7'] = df['palua'].rolling(7).std()
+
+# 4. Ratio entre estaciones (proxy de gradiente hidráulico)
+df['ratio_caicara_palua'] = df['caicara'] / (df['palua'] + 0.01)
+
+# 5. Anomalía respecto al ciclo medio histórico
+climatology = df.groupby(df.index.dayofyear)['palua'].mean()
+df['palua_anomaly'] = df['palua'] - df.index.dayofyear.map(climatology)
+```
+
+**Pregunta crítica para el agente:** ¿Deben estas features incluirse dentro de la ventana (como columnas adicionales del tensor 3D) o como un vector estático concatenado al output del LSTM antes de la capa Dense?
+
+### 5.2 — Gestión de Riesgos y Puntos Ciegos
+
+#### El Caroní: Cuantificación del Riesgo
+
+El río Caroní descarga aproximadamente 4,850 m³/s promedio en el Orinoco, justo antes de Palúa. Las descargas de Macagua pueden variar ±50% en horas dependiendo de la demanda eléctrica. Esto significa:
+
+- **Riesgo cuantificado:** Los días con errores >1.5σ en el test set de Palúa probablemente correlacionan con eventos del Caroní no observados.
+- **Mitigación posible:** Calcular los residuos del modelo y analizar si los peores errores se concentran en meses de alta generación hidroeléctrica (julio-octubre).
+- **Documentación en la tesis:** Incluir explícitamente una sección "Limitaciones" que mencione este punto ciego. Los jurados respetan más una limitación bien documentada que una predicción sospechosamente perfecta.
+
+#### Fallos de Sensor
+
+```python
+def detect_sensor_anomalies(series: pd.Series) -> pd.Series:
+    """
+    Detecta patrones típicos de fallos de sensor:
+    1. Valores constantes por >3 días (sensor atascado)
+    2. Saltos > 2m en un día (durante aguas bajas)
+    3. Valores negativos (imposible físicamente)
+    4. Valores > máximo histórico + 20%
+    """
+    flags = pd.Series(0, index=series.index)
+    
+    # Sensor atascado
+    flags[series.diff().abs() == 0] += 1
+    
+    # Salto abrupto en aguas bajas
+    daily_change = series.diff().abs()
+    is_low_water = series < series.quantile(0.25)
+    flags[(daily_change > 2) & is_low_water] += 1
+    
+    # Físicamente imposible
+    flags[series < 0] += 1
+    flags[series > series.max() * 1.2] += 1
+    
+    return flags
+```
+
+### 5.3 — La Decisión de Frameworks (Definitiva)
+
+| Aspecto | LSTM (Keras/TF) | Transformer (PyTorch) |
+|---|---|---|
+| **Rol en la tesis** | Modelo principal obligatorio | Plus académico |
+| **Framework** | TensorFlow 2.x + Keras | PyTorch 2.x |
+| **Justificación** | Rapidez de prototipado, `model.fit()` simplifica experimentación con hiperparámetros | Ecosistema nativo de Transformers, papers de referencia en PyTorch |
+| **VRAM estimada** | < 1 GB | 2-3 GB (con batch_size=32, d_model=64) |
+| **Tiempo estimado/época** | 1-2 seg | 3-5 seg |
+| **Riesgo** | Shadow effect si no se configura bien | OOM si batch_size es demasiado grande |
+
+**Veredicto final:** LSTM en Keras para el core, Transformer en PyTorch para el plus. Ambos comparten el mismo pipeline de datos (`src/data/`), solo difiere el modelo. El código de evaluación (`src/evaluation/`) es agnóstico al framework.
+
+---
+
+## PARTE VI: PROPUESTA AUTÓNOMA DE FRONTERA (FRONTIER PROPOSAL)
+
+### Lo que están pasando por alto
+
+Después de analizar el brainstorming completo, la topología del problema y el estado del arte en hidrología computacional, identifico **cinco oportunidades** que elevarían esta tesis de "proyecto de curso correcto" a "contribución académica publicable":
+
+---
+
+### Propuesta 1: Predicción Probabilística, No Determinística
+
+**El problema:** Todos los modelos planteados (Naive, SARIMA, LSTM, Transformer) predicen un único valor puntual: "el río estará a 8.3 metros en 7 días". Esto es científicamente incompleto. Un hidrólogo necesita saber: "el río estará entre 7.8 y 8.9 metros con 90% de confianza".
+
+**La solución:** Implementar **Predicción por Cuantiles** (Quantile Regression) en la capa de salida del LSTM.
+
+```python
+# En lugar de Dense(7) con loss='mse',
+# usar 3 salidas por día: cuantil 0.1, 0.5, 0.9
+model.add(Dense(7 * 3))  # 21 neuronas de salida
+model.reshape((7, 3))    # Reshape a (días, cuantiles)
+
+# Loss function: Pinball Loss (Quantile Loss)
+def quantile_loss(q, y_true, y_pred):
+    e = y_true - y_pred
+    return tf.reduce_mean(tf.maximum(q * e, (q - 1) * e))
+```
+
+**Impacto visual:** En lugar de una línea de predicción, generas un **abanico de incertidumbre** que se abre hacia el futuro. Esto es infinitamente más útil para la toma de decisiones y visualmente espectacular en una presentación.
+
+**Referencia:** Gasthaus, J., et al. (2019). "Probabilistic Forecasting with Spline Quantile Function RNNs." AISTATS.
+
+---
+
+### Propuesta 2: Physics-Informed Neural Network (PINN) Lite
+
+**El problema:** El LSTM trata al río como una caja negra matemática. No sabe que el agua fluye de arriba hacia abajo, que el nivel no puede ser negativo, o que la velocidad de cambio tiene límites físicos.
+
+**La solución:** Agregar un **término de regularización físico** a la función de pérdida. No es un PINN completo (que resolvería ecuaciones de Saint-Venant), sino una versión "lite" que penaliza predicciones físicamente imposibles:
+
+```python
+def physics_informed_loss(y_true, y_pred, alpha=0.1, beta=0.05):
+    """
+    Combina MSE estándar con penalizaciones físicas.
+    """
+    # 1. Error de reconstrucción estándar
+    mse = tf.reduce_mean(tf.square(y_true - y_pred))
+    
+    # 2. Penalización por niveles negativos
+    negative_penalty = tf.reduce_mean(tf.square(tf.minimum(y_pred, 0)))
+    
+    # 3. Penalización por cambios diarios excesivos (>1.5 m/día)
+    daily_change = y_pred[:, 1:] - y_pred[:, :-1]
+    smoothness_penalty = tf.reduce_mean(
+        tf.square(tf.maximum(tf.abs(daily_change) - 1.5, 0))
+    )
+    
+    return mse + alpha * negative_penalty + beta * smoothness_penalty
+```
+
+**Impacto académico:** Mencionar "Physics-Informed" en el título de la tesis la posiciona en la frontera de la investigación hidrológica. Los jurados de ingeniería civil adorarán que no estés tratando al río como una serie financiera.
+
+**Referencia:** Raissi, M., Perdikaris, P., & Karniadakis, G.E. (2019). "Physics-informed neural networks." Journal of Computational Physics.
+
+---
+
+### Propuesta 3: Attention-Based Feature Importance (Interpretabilidad)
+
+**El problema:** Tu LSTM es una caja negra. Cuando el jurado pregunte "¿por qué el modelo predice que el río subirá?", no podrás responder.
+
+**La solución:** Agregar una **capa de atención** (Attention Layer) entre la salida del LSTM y la capa Dense. Esta capa produce un vector de pesos que indica qué días del pasado fueron más relevantes para la predicción.
+
+```python
+from tensorflow.keras.layers import Dense, LSTM, Attention, Concatenate
+
+# Encoder LSTM con return_sequences=True
+lstm_out = LSTM(64, return_sequences=True)(input_layer)  # (batch, 30, 64)
+
+# Capa de atención: ¿qué días importan más?
+attention_weights = Dense(1, activation='tanh')(lstm_out)  # (batch, 30, 1)
+attention_weights = tf.nn.softmax(attention_weights, axis=1)
+
+# Contexto ponderado
+context = tf.reduce_sum(lstm_out * attention_weights, axis=1)  # (batch, 64)
+
+output = Dense(7)(context)
+```
+
+**Impacto:** Puedes generar un heatmap que muestre: "Para predecir el nivel del 15 de agosto, el modelo puso el 80% de su atención en los datos de Caicara de hace 7-10 días y el 15% en la tendencia de Palúa de los últimos 3 días". Esto valida la hipótesis hidrológica de los "radares" de forma cuantitativa.
+
+---
+
+### Propuesta 4: Validación Walk-Forward Expandida + Conformal Prediction
+
+**El problema:** Una sola partición train/val/test puede ser afortunada o desafortunada. Un jurado escéptico dirá: "¿Y si tu test set cayó en un año fácil?"
+
+**La solución:** Implementar walk-forward validation con al menos 5 folds:
+
+```
+Fold 1: Train [1974-2010], Test [2011-2013]
+Fold 2: Train [1974-2013], Test [2014-2016]
+Fold 3: Train [1974-2016], Test [2017-2019]
+Fold 4: Train [1974-2019], Test [2020-2022]
+Fold 5: Train [1974-2022], Test [2023-2025]
+```
+
+Y reportar métricas como media ± desviación estándar de los 5 folds. Si el NSE es 0.92 ± 0.03, es robusto. Si es 0.92 ± 0.15, es inestable.
+
+**Plus adicional:** Usar los residuos de walk-forward para construir **bandas de predicción conformales** (Conformal Prediction), que tienen garantías teóricas de cobertura sin asumir distribución de los errores.
+
+**Referencia:** Stankeviciute, K., Alaa, A.M., & van der Schaar, M. (2021). "Conformal Time-Series Forecasting." NeurIPS.
+
+---
+
+### Propuesta 5: Anomalía del Caroní como Feature Latente
+
+**El problema:** No tienes datos del Caroní, pero su efecto EXISTE en tus datos de Palúa.
+
+**La solución:** Crear una **variable proxy del Caroní** a partir de los datos que sí tienes:
+
+```python
+# Si Ciudad Bolívar y Palúa están a ~50km, su diferencia
+# debería ser casi constante si solo fluyera el Orinoco.
+# Cualquier desviación es causada por un aporte externo (Caroní).
+
+df['caroni_proxy'] = df['palua'] - (
+    df['ciudad_bolivar'] * alpha + beta
+)
+# Donde alpha y beta se estiman por regresión lineal
+# en períodos donde sabemos que el Caroní aporta poco (aguas bajas)
+```
+
+Esta variable `caroni_proxy` captura la "anomalía" que el Caroní introduce en Palúa. Si la incluyes como feature, el LSTM puede aprender que cuando esta anomalía es alta, Palúa se comporta de forma impredecible y debe ampliar su incertidumbre.
+
+---
+
+## PARTE VII: PLAN DE EJECUCIÓN RECOMENDADO
+
+| Semana | Fase | Entregable | Bloquea |
+|--------|------|------------|---------|
+| 1 | Auditoría de Imputación (Fase 0) | `00_imputation_audit.ipynb` + veredicto | Todo lo demás |
+| 1-2 | EDA (Fase 1) | `01_eda.ipynb` + lag times empíricos | Lookback window |
+| 2 | Preprocessing (Fase 2) | Pipeline anti-leakage funcional | Modelado |
+| 2 | Feature Engineering | `02_feature_engineering.ipynb` | Modelado |
+| 3 | Baselines (Fase 3a) | Naive + SARIMA evaluados por régimen | LSTM |
+| 3-4 | LSTM (Fase 3b) | Modelo entrenado + tabla de métricas | Comparación |
+| 4 | Evaluación (Fase 5) | Tablas comparativas + gráficas finales | Tesis |
+| 5 | Transformer (Fase 4) [Plus] | Modelo + comparación vs LSTM | — |
+| 5 | Propuestas Frontier | Atención + Quantile (opcional) | — |
+
+---
+
+## CIERRE
+
+Este marco no es un plan estático. Es un **contrato intelectual** entre tú, los agentes de IA que escribirán el código, y el jurado que evaluará la tesis. Cada decisión tiene su justificación, cada fase tiene sus preguntas de control, y cada riesgo tiene su mitigación documentada.
+
+La diferencia entre un proyecto que aprueba y una tesis que marca precedente no está en la complejidad del modelo. Está en el rigor del proceso. El LSTM más simple del mundo, bien validado y con sus limitaciones honestas, vale más que un Transformer sofisticado construido sobre datos contaminados por data leakage.
+
+**Siguiente paso concreto:** Ejecutar la Fase 0 (Auditoría de Imputación). Hasta que no se responda PC-00-07, ningún agente debe escribir una sola línea de código de modelado.
