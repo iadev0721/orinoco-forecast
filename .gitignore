@@ -89,6 +89,9 @@ logs/
 # --- CUDA / GPU ---
 *.cudnn_session
 
+# --- Agent / SDD local artifacts ---
+.atl/
+
 # --- Documentos temporales ---
 *.tmp
 *.bak

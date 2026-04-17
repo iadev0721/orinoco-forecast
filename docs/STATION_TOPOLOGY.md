@@ -6,26 +6,26 @@
                     AGUAS ARRIBA
                         │
              ┌──────────┴──────────┐
-             │   Puerto Ayacucho   │  km 0 (referencia)
-             │   (Radar Lejano)    │  order: 0
+             │   Puerto Ayacucho   │  km_relative: 0 (referencia)
+             │   (Predictor Lejano) │  order: 0
              └──────────┬──────────┘
-                        │ ~500 km
-                        │ lag estimado: 10-15 días
+                        │ ~340-350 km carretera (dist. fluvial: mayor, sin datos oficiales)
+                        │ lag empírico: 12 días (cross-corr 50 años de datos, corr=0.981)
              ┌──────────┴──────────┐
-             │      Caicara        │  km 500
-             │   (Radar Medio)     │  order: 1
+             │      Caicara        │  km_relative: 500 (aprox. relativo)
+             │   (Predictor Medio) │  order: 1
              └──────────┬──────────┘
-                        │ ~400 km
-                        │ lag estimado: 5-8 días
+                        │ ~365-370 km carretera (dist. fluvial: mayor, sin datos oficiales)
+                        │ lag empírico: 4 días (cross-corr 50 años de datos, corr=0.979)
              ┌──────────┴──────────┐
-             │   Ciudad Bolívar    │  km 900
-             │   (Radar Cercano)   │  order: 2
+             │   Ciudad Bolívar    │  km_relative: 900 (aprox. relativo)
+             │  (Predictor Cercano) │  order: 2
              └──────────┬──────────┘
-                        │ ~50 km
-                        │ lag estimado: 1-2 días
+                        │ ~110-120 km carretera (verificado)
+                        │ lag empírico: 0 días ⚠️ SOSPECHOSO — investigar en EDA PC-01-03
              ┌──────────┴──────────┐
-             │       Palúa         │  km 950  ← CONFLUENCIA CARONÍ
-             │  (Target Default)   │  order: 3    (punto ciego)
+             │       Palúa         │  km_relative: 1000  ← CONFLUENCIA CAROÍ
+             │  (Estación Target)  │  order: 3    (punto ciego)
              └─────────────────────┘
                         │
                     AGUAS ABAJO
@@ -33,24 +33,35 @@
 
 ## Tabla de Lag Times
 
-| Par de estaciones | Lag estimado (días) | Fuente |
+| Par de estaciones | Lag empírico (días) | Fuente |
 |---|---|---|
-| Ayacucho → Caicara | 10-15 | Velocidad media del flujo en el tramo |
-| Caicara → Ciudad Bolívar | 5-8 | Cruz-correlación empírica |
-| Ciudad Bolívar → Palúa | 1-2 | Proximidad geográfica |
-| Ayacucho → Palúa (total) | 16-25 | Suma de tramos |
+| Ayacucho → Caicara | ~8 (inferido) | Lag total - lags individuales |
+| Caicara → Ciudad Bolívar | ~4 (inferido) | Lag total - lag Caicara |
+| Ciudad Bolívar → Palúa | 0 ⚠️ | Cross-correlación empírica — SOSPECHOSO |
+| Ayacucho → Palúa (total) | 12 | Cross-corr dataset real (1974-2025, corr=0.981) |
+| Caicara → Palúa (total) | 4 | Cross-corr dataset real (1974-2025, corr=0.979) |
 
-> ⚠️ **Estos valores son estimados.** El EDA (PC-01-03) los debe calcular empíricamente
-> y actualizar `results/metrics/eda_lag_times.json`. El lookback window se ajusta en función de estos resultados.
+> ⚠️ **Lag 0 en Ciudad Bolívar → Palúa es físicamente sospechoso.** La distancia por carretera
+> es ~110-120 km; la distancia fluvial es mayor por los meandros. Con una celeridad típica
+> de ondas de crecida en ríos de llanura tropical (30-80 km/día), el lag esperado sería
+> de 1-4 días. El lag=0 empírico puede deberse a:
+> 1. El Caroní impacta ambas estaciones simultáneamente (driver domínante aguas abajo)
+> 2. La imputación destruyó el lag natural en los tramos imputados
+> **Investigar en EDA PC-01-03 y documentar la conclusión en la tesis.**
+>
+> ⚠️ **Los lags por tramo (Ayacucho→Caicara, Caicara→CiudadBolívar) son INFERIDOS**, no
+> medidos directamente: el lag total Ayacucho→Palúa (12 días) y Caicara→Palúa (4 días)
+> son empíricos; los tramos intermedios se calculan por sustitución. El EDA debe
+> calcularlos directamente (Ayacucho→Caicara, Caicara→Ciudad Bolívar) con cross-corr.
 
 ## Lógica de Selección Automática de Features
 
 ```python
 STATION_ORDER = {
-    "ayacucho": {"km_from_source": 0, "order": 0},
-    "caicara": {"km_from_source": 500, "order": 1},
-    "ciudad_bolivar": {"km_from_source": 900, "order": 2},
-    "palua": {"km_from_source": 950, "order": 3},
+    "ayacucho":        {"km_relative": 0,    "order": 0},
+    "caicara":         {"km_relative": 500,  "order": 1},
+    "ciudad_bolivar": {"km_relative": 900,  "order": 2},
+    "palua":           {"km_relative": 1000, "order": 3},
 }
 
 
@@ -93,15 +104,18 @@ def get_predictors(target: str, station_graph: dict) -> dict:
 
 
 # Ejemplos de uso:
-# target = "palua"       → primary: [ayacucho, caicara, ciudad_bolivar]
+# target = "palua"           → primary: [ayacucho, caicara, ciudad_bolivar]
 # target = "ciudad_bolivar" → primary: [ayacucho, caicara], excluded: [palua]
-# target = "caicara"     → primary: [ayacucho], excluded: [ciudad_bolivar, palua]
+# target = "caicara"        → primary: [ayacucho], excluded: [ciudad_bolivar, palua]
+# target = "ayacucho"       → primary: [], excluded: [caicara, ciudad_bolivar, palua] (solo autoreg.)
 ```
 
 ## El Punto Ciego: El Río Caroní
 
-El río Caroní es el principal afluente del Orinoco aguas abajo de Ciudad Bolívar
-y desemboca directamente antes de Palúa (la estación target default).
+El río Caroní es el principal afluente del Orinoco en el tramo inferior de la cuenca
+y desemboca directamente en el Orinoco en la zona de Palúa/San Félix (Ciudad Guayana).
+Esta confluencia ocurre **aguas abajo de Ciudad Bolívar** y explica por qué la estación
+Palúa puede comportarse de forma distinta al patrón upstream.
 
 | Característica | Valor |
 |---|---|

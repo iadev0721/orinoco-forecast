@@ -6,6 +6,9 @@
 # ============================================================
 
 # --- Configuración global del problema ---
+# target_station: cualquier estación del dataset puede ser el objetivo.
+# Opciones válidas: ayacucho | caicara | ciudad_bolivar | palua
+# El código usa get_predictors() en STATION_TOPOLOGY para excluir aguas abajo automáticamente.
 target_station: "palua"
 forecast_horizon: 7          # días a predecir (t+1 a t+7)
 lookback_window: 30          # días de historia como input (ajustar tras EDA PC-01-03)
@@ -16,9 +19,12 @@ val_end: "2020-12-31"
 # test: 2021-01-01 a 2025-02-24 (implícito)
 
 # --- Rutas de datos ---
+# NOTA: Solo existe una versión del dataset (ya imputada con Simple ML).
+# El archivo original (con brechas) NO está disponible. La Fase 0 audita la calidad
+# del único dataset disponible, incluyendo 17 NaN en palua (artefacto de años bisiestos
+# y 5 días de 1993 — a investigar en PC-00-01).
 data:
-  raw_original: "data/raw/dataset_original.xlsx"
-  raw_imputed: "data/raw/dataset_imputado_simpleml.csv"
+  raw: "data/raw/dataset-orinoco.xlsx"          # Único dataset: 18,683 registros 1974-2025
   audited: "data/processed/dataset_audited.parquet"
   final: "data/processed/dataset_final.parquet"
   enso: "data/external/enso_oni_index.csv"
@@ -33,26 +39,43 @@ results:
 
 # --- Grafo hidrológico de estaciones ---
 # REGLA R8: Nomenclatura oficial de estaciones
+#
+# NOTA SOBRE DISTANCIAS (km_relative):
+#   Son distancias RELATIVAS tomando Ayacucho como referencia 0.
+#   Las distancias fluviales reales (por cauce) requieren cartas náuticas
+#   del INC (Instituto Nacional de Canalizaciones) — no disponibles en fuentes públicas.
+#   Las distancias por carretera verificadas:
+#     Ayacucho → Caicara: ~340-350 km (Troncal 12)
+#     Caicara → Ciudad Bolívar: ~365-370 km
+#     Ciudad Bolívar → Palúa (San Félix/Ciudad Guayana): ~110-120 km
+#
+# NOTA SOBRE lag_to_target_days:
+#   Valores EMPÍRICOS calculados por cross-correlación sobre 18,683 registros reales
+#   (1974-2025). No son estimados teóricos. Ver resultados en eda_lag_times.json
+#   tras ejecutar EDA PC-01-03.
+#   Alerta: lag Ciudad Bolívar→Palúa = 0 días puede ser artefacto de imputación
+#   o efecto del Caroní como driver dominante. Investigar en PC-01-03.
 stations:
   ayacucho:
-    km_from_source: 0
+    km_relative: 0              # Referencia relativa (no desde la naciente real)
     order: 0
     role: "upstream_far"
-    lag_to_palua_days: [16, 25]  # rango estimado, verificar con EDA
+    lag_to_target_days: 12      # Empírico: cross-corr dataset real (corr=0.981)
   caicara:
-    km_from_source: 500
+    km_relative: 500            # Aproximado — distancia relativa a Ayacucho
     order: 1
     role: "upstream_mid"
-    lag_to_palua_days: [6, 10]
+    lag_to_target_days: 4       # Empírico: cross-corr dataset real (corr=0.979)
   ciudad_bolivar:
-    km_from_source: 900
+    km_relative: 900            # Aproximado — distancia relativa a Ayacucho
     order: 2
     role: "upstream_near"
-    lag_to_palua_days: [1, 2]
+    lag_to_target_days: 0       # Empírico: cross-corr dataset real (corr=0.993)
+                                # ⚠️ Investigar en EDA PC-01-03: lag=0 sospechoso
   palua:
-    km_from_source: 950
+    km_relative: 1000           # Corregido: ~110-120 km carretera desde Ciudad Bolívar
     order: 3
-    role: "target_default"
+    role: "downstream_target"   # Sin "default" — es un target configurable más
 
 # --- Hiperparámetros: LSTM (Keras) --- MODELO CORE
 lstm:

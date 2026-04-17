@@ -14,7 +14,11 @@ Modelado predictivo multiestación del nivel hidrométrico del río Orinoco con 
 
 ## Hipótesis de Tesis
 
-> Los niveles aguas arriba del Orinoco (Puerto Ayacucho, Caicara, Ciudad Bolívar) contienen información predictiva suficiente para anticipar el nivel en **Palúa** con un horizonte de 7 días, superando significativamente un modelo naive y un baseline estadístico, particularmente durante los **períodos de transición hidrológica** (ascenso mayo-julio, descenso octubre-diciembre).
+> Los niveles hidrométricos aguas arriba del Orinoco contienen información predictiva suficiente
+> para anticipar el nivel en **la estación target elegida** con un horizonte de 7 días, superando
+> significativamente un modelo naive y un baseline estadístico, particularmente durante los
+> **períodos de transición hidrológica** (ascenso mayo-julio, descenso octubre-diciembre).
+> La elección de la estación target y su justificación hidrológica forma parte del análisis de la tesis.
 
 ## Dataset
 
@@ -22,8 +26,10 @@ Modelado predictivo multiestación del nivel hidrométrico del río Orinoco con 
 |-------|---------|
 | Rango temporal | 1974-01-01 a 2025-02-24 (~18,683 registros diarios) |
 | Estaciones | Puerto Ayacucho · Caicara · Ciudad Bolívar · Palúa |
-| Versiones | Original (con brechas) + Imputada por Simple ML (bajo auditoría) |
-| Target default | **Palúa** (confluencia Caroní — punto ciego) |
+| Versión disponible | Única versión imputada con Simple ML (`dataset-orinoco.xlsx`) |
+| Dataset original | **No disponible** para comparación directa |
+| NaN conocidos | 17 en columna `palua`: todos los 29 de febrero (bisiestos 1976-2020) y 5 días en 1993 — artefacto de la imputación |
+| Target del experimento | Configurable — cualquier estación del dataset |
 
 ## Hardware
 
@@ -102,9 +108,8 @@ source .venv/bin/activate  # Linux/Mac
 # 3. Instalar dependencias
 pip install -r requirements.txt
 
-# 4. Colocar los datos en data/raw/
-# - dataset_original.xlsx
-# - dataset_imputado_simpleml.csv
+# 4. Colocar el dataset en data/raw/
+# - dataset-orinoco.xlsx  (archivo único, ya imputado con Simple ML)
 
 # 5. Ejecutar desde Fase 0
 jupyter notebook notebooks/00_imputation_audit.ipynb

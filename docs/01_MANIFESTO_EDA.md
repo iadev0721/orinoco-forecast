@@ -43,13 +43,26 @@ Reportar:
 ```
 ¿Cuál es el lag time empírico entre estaciones?
 Calcular cross-correlation y reportar el lag (días) donde se maximiza:
-  - Ayacucho → Caicara
-  - Caicara → Ciudad Bolívar
-  - Ciudad Bolívar → Palúa
-  - Ayacucho → Palúa (lag total del sistema)
+  - Ayacucho → Caicara         (inferido preliminar: ~8 días)
+  - Caicara → Ciudad Bolívar   (inferido preliminar: ~4 días)
+  - Ciudad Bolívar → Palúa     (empírico preliminar: 0 días ⚠️ SOSPECHOSO)
+  - Ayacucho → Palúa (total)   (empírico: 12 días, corr=0.981)
+  - Caicara → Palúa (total)    (empírico: 4 días, corr=0.979)
+
+INVESTIGAR OBLIGATORIAMENTE:
+El lag Ciudad Bolívar → Palúa = 0 días es físicamente implausible:
+  - Distancia carretera verificada: ~110-120 km
+  - Distancia fluvial: mayor (por meandros — sin datos oficiales sin carta náutica INC)
+  - Celeridad de onda típica en ríos de llanura tropical: 30-80 km/día
+  - Lag físico esperado: 1-4 días
+Hipótesis a evaluar:
+  H1: El Caroní domina ambas estaciones simultáneamente (driver común aguas abajo)
+  H2: La imputación destruyó el lag natural en los tramos con datos faltantes
+  H3: El lag real existe pero es menor a 1 día (granularidad diaria no lo captura)
+Documentar la conclusión y su implicación para el modelo en la sección de Limitaciones.
 
 ESTOS VALORES DETERMINAN EL LOOKBACK WINDOW MÍNIMO.
-Si el lag total Ayacucho→Palúa supera 30 días, ajustar config.yaml.
+Si el lag total Ayacucho→target supera 30 días, ajustar config.yaml.
 ```
 
 ### PC-01-04: No-Estacionariedad Climática
@@ -81,8 +94,11 @@ Si existe un quiebre significativo, documentar año y causa probable.
 ```
 Calcular Sample Entropy para cada estación.
 ¿Cuál estación es más "predecible"?
-Hipótesis: Palúa debería tener entropía más alta por el efecto del Caroní.
-Si se confirma, esto justifica la necesidad de deep learning.
+Hipótesis: si el target elegido es Palúa, debería tener entropía más alta por el
+efecto del Caroní (perturbación no observable en el dataset).
+Si el target es otra estación, comparar su entropía con el resto y justificar
+si la elección es desafiante o conservadora — ambas son válidas, pero deben argumentarse.
+Si se confirma alta entropía en el target, esto justifica la necesidad de deep learning.
 ```
 
 ---
@@ -109,11 +125,14 @@ El EDA debe analizar las 7 preguntas de control **desagregadas por régimen**.
 - **Artefacto:** `results/metrics/eda_lag_times.json`:
   ```json
   {
-    "ayacucho_to_caicara_days": 12,
-    "caicara_to_ciudad_bolivar_days": 7,
-    "ciudad_bolivar_to_palua_days": 2,
-    "ayacucho_to_palua_total_days": 21,
+    "ayacucho_to_caicara_days": null,
+    "caicara_to_ciudad_bolivar_days": null,
+    "ciudad_bolivar_to_palua_days": null,
+    "ayacucho_to_palua_total_days": 12,
+    "caicara_to_palua_total_days": 4,
+    "ciudad_bolivar_palua_lag0_hypothesis": "pending_eda",
     "recommended_lookback_window": 30,
+    "note": "Lags totales son empíricos (cross-corr 18683 registros). Lags por tramo pendientes de EDA.",
     "executed_at": "YYYY-MM-DD"
   }
   ```

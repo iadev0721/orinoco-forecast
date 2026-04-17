@@ -5,15 +5,24 @@
 
 ## Propósito
 
-Determinar si los datos imputados con "Simple ML" son confiables para entrenar un modelo de
-deep learning sobre un sistema hidrodinámico, o si la imputación introdujo artefactos que
-degradan la señal hidrológica del Orinoco.
+Determinar si el único dataset disponible (`dataset-orinoco.xlsx`, ya imputado con Simple ML)
+es confiable para entrenar un modelo de deep learning sobre un sistema hidrodinámico, o si
+la imputación introdujo artefactos que degradan la señal hidrológica del Orinoco.
+
+**Punto de partida conocido:** el dataset tiene 17 NaN en la columna `palua` (todas las fechas
+29 de febrero de años bisiestos entre 1976 y 2020, más 5 días en febrero/octubre de 1993).
+Esto es un artefacto de la imputación. La Fase 0 debe caracterizarlo y resolverlo.
 
 ## Contexto Crítico
 
-"Simple ML" es un término genérico. Para un río como el Orinoco, donde los datos faltantes
+**Simple ML** es un término genérico. Para un río como el Orinoco, donde los datos faltantes
 pueden coincidir con eventos extremos (el sensor falla más durante crecidas por sobrecarga
 eléctrica o vandalismo), un método de imputación que no entienda la física del río puede:
+
+**Situación real del dataset:** Solo existe la versión ya imputada. El dataset original
+(con brechas naturales) no está disponible para comparación directa. Esto significa que
+los tests que requieren "original vs imputado" se sustituyen por tests de **plausibilidad
+hidrológica** y **coherencia de la señal** sobre el único dataset disponible.
 
 1. **Aplanar picos de crecida:** Si el modelo suavizó valores durante brechas en agosto-septiembre,
    el LSTM aprenderá que las crecidas son menos severas de lo que realmente son.
@@ -32,14 +41,16 @@ eléctrica o vandalismo), un método de imputación que no entienda la física d
 
 El notebook `00_imputation_audit.ipynb` debe responder explícitamente a cada una:
 
-### PC-00-01: Análisis de Brechas por Estación
+### PC-00-01: Análisis de NaN por Estación
 ```
-¿Cuántas brechas tiene cada estación en el dataset original?
+Caracterizar los 17 NaN conocidos en palua y buscar NaN ocultos en las demás estaciones:
 Reportar:
-  - Conteo total de NaN por estación
-  - Brecha más larga consecutiva (días) por estación
-  - Distribución temporal: ¿se concentran en algún mes o década?
-  - Porcentaje de datos faltantes sobre el total
+  - Conteo total de NaN por estación (verificar los 17 de palua)
+  - Fecha exacta de cada NaN en palua y clasificación:
+      * Grupo A: 29 de febrero (años bisiestos) — artefacto de calendarización
+      * Grupo B: 5 días en 1993 (feb 27-28 y oct 29-31) — causa a investigar
+  - Distribución temporal: ¿se concentran en algún régimen hidrológico?
+  - Estrategia de resolución: interpolación lineal (bisiestos) vs método más robusto (1993)
 ```
 
 ### PC-00-02: Coincidencia Temporal de Brechas
@@ -53,52 +64,60 @@ Reportar:
   - Impacto estimado en el poder predictivo del modelo
 ```
 
-### PC-00-03: Distribución Estadística Original vs Imputada
+### PC-00-03: Plausibilidad Hidrológica de la Señal
 ```
-Comparar distribución estadística (media, varianza, curtosis, p5/p95)
-entre datos originales y datos imputados, POR ESTACIÓN y POR MES.
-¿La imputación aplanó los extremos?
-Visualizar: boxplots comparativos por mes
+Sin dataset original para comparar directamente, evaluar plausibilidad de la señal:
+  - Distribución mensual: ¿respeta el ciclo hidrológico típico del Orinoco?
+    (aguas bajas: ene-abr, ascenso: may-jul, crecida: ago-sep, descenso: oct-dic)
+  - Curtosis y asimetría por mes y estación: ¿los extremos son realistas?
+  - Comparar máximos históricos contra registros documentados del INAMEH
+  - Detectar zonas con varianza anormalmente baja (¿señal imputada plana?):
+    ventanas de 30 días con std < percentil 10 de std móvil son sospechosas
 ```
 
-### PC-00-04: ACF y PACF — Autocorrelación Artificial
+### PC-00-04: ACF y PACF — Autocorrelación de la Señal
 ```
-Calcular ACF y PACF para ambas versiones (original e imputada) hasta lag=60 días.
-¿La versión imputada tiene autocorrelación artificialmente más alta?
-Visualizar: gráficos ACF/PACF lado a lado por estación
+Calcular ACF y PACF hasta lag=60 días para cada estación.
+¿Existen picos artificiales en la autocorrelación que sugieran imputación suavizada?
+Buscar: autocorrelación anormalmente alta en lags 1-7 durante años bisiestos.
 ```
 
 ### PC-00-05: Cross-Correlation Entre Estaciones
 ```
 Calcular correlación cruzada entre pares:
+  - Ayacucho → Caicara
   - Caicara → Ciudad Bolívar
-  - Ciudad Bolívar → Palúa
+  - Ciudad Bolívar → Palúa  ← lag=0 empírico es sospechoso: investigar
   - Ayacucho → Palúa (lag total)
-... en ambas versiones (original e imputada).
-¿El lag óptimo cambió tras la imputación?
+Esperado (físico): Ciudad Bolívar → Palúa debería tener lag de 1-4 días
+(~110-120 km de distancia, celeridad de onda típica en rios de llanura: 30-80 km/día).
+Si el lag empírico sigue siendo 0, documentar las hipótesis: (1) el Caroní domina
+ambas estaciones simultáneamente, (2) la imputación destruyó el lag natural.
 ```
 
-### PC-00-06: Visualización Superpuesta en Brechas
+### PC-00-06: Visualización de las Zonas Imputadas Conocidas
 ```
-Visualizar SUPERPUESTO: datos originales (con huecos) vs datos imputados.
-ZOOM en las 3 brechas más largas de cada estación.
-¿Los valores imputados son físicamente plausibles?
-¿Respetan el ciclo estacional esperado?
+Visualizar en detalle los 17 registros NaN de palua y su contexto (±15 días):
+  - ¿Los valores adyacentes son coherentes con el ciclo esperado?
+  - ¿El 29 de febrero imputado (una vez resuelto) respeta la tendencia de esa semana?
+  - Para los 5 días de 1993: ¿coincide con un evento hidrológico documentado?
+    Buscar en registros históricos del INAMEH o literatura de crecidas extremas del Orinoco.
 ```
 
 ### PC-00-07: VEREDICTO — Decisión de Datos
 ```
 Con base en PC-00-01 a PC-00-06, emitir veredicto:
 
-OPCIÓN A — Usar versión imputada tal como está.
+OPCIÓN A — Usar el dataset tal como está, imputando los 17 NaN de palua con
+            interpolación lineal (bisiestos) y método específico para los 5 de 1993.
   Criterio: todos los tests de validación aprobados.
 
-OPCIÓN B — Re-imputar con método más sofisticado (MICE, GP interpolation).
-  Criterio: ≥ 2 tests fallaron, pero las brechas son recuperables.
+OPCIÓN B — Imputar los 17 NaN con método más sofisticado (MICE, KNN con estaciones
+            vecinas, interpolación basada en correlación con ciudad_bolivar).
+  Criterio: ≥1 test falló pero la señal es recuperable.
 
-OPCIÓN C — Entrenar solo con datos originales, descartando ventanas con NaN.
-  Criterio: la imputación introduce sesgos no recuperables, o las brechas
-  son pocas y cortas (< 5% del total).
+OPCIÓN C — Descartar las ventanas de tiempo que contengan los 17 NaN.
+  Criterio: los NaN no pueden imputarse de forma confiable (bisiestos en aguas extremas).
 
 El veredicto debe quedar registrado en results/metrics/phase0_verdict.json
 ```

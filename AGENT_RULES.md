@@ -26,9 +26,12 @@ Esto invalida cualquier métrica reportada porque el scaler "vio" los min/max de
 **→ Ver R1 para la corrección.**
 
 ### ❌ Error Heredado #2: Imputación no auditada
-Se usaron dos versiones del dataset sin auditoría comparativa rigurosa.
-No se sabe qué método usó "Simple ML" internamente ni si introdujo autocorrelaciones artificiales.
-**→ Fase 0 (00_imputation_audit.ipynb) debe completarse PRIMERO.**
+Solo existe **una versión del dataset** (`dataset-orinoco.xlsx`), ya imputada con Simple ML.
+El dataset original (con brechas naturales) no está disponible para comparación directa.
+Se conocen 17 NaN en `palua` (años bisiestos + 5 días de 1993) que son artefactos de la
+imputación. No se sabe qué método usó Simple ML internamente ni si introdujo
+autocorrelaciones artificiales en los tramos imputados.
+**→ La Fase 0 audita la calidad del único dataset disponible (no compara dos versiones).**
 
 ### ❌ Error Heredado #3: Inconsistencia de frameworks
 El proyecto osciló entre PyTorch y TensorFlow/Keras sin decisión formal.
@@ -126,6 +129,7 @@ torch.cuda.empty_cache()
 
 - **Idioma del código:** Inglés (variables, funciones, docstrings).
 - **Idioma de los comentarios:** Español (para contexto de tesis).
+- **Idioma de los nombres de carpetas y archivos:** Inglés (`data/`, `src/`, `models/`, etc.).
 - **Type hints** obligatorios en TODAS las funciones.
 - **Docstrings** en formato Google style.
 - **Logging** con el módulo `logging`, **NUNCA con `print()`**.
@@ -223,7 +227,7 @@ Respuesta real basada en los datos reales de esa ejecución.
 | Scaler | MinMaxScaler | Preserva distribución, rango [0,1] |
 | Split strategy | Cronológico estricto | Serie temporal — no aleatorio |
 | Lookback inicial | 30 días | Verificar con cross-correlation en EDA |
-| Target default | Palúa | Confluencia Caroní = problema más difícil |
+| Target (configurable) | Cualquier estación | Definido en `config.yaml → target_station`. No hay "default" fijo: la elección se justifica en la tesis según el problema a resolver. |
 | Loss function LSTM | MSE (base) → Pinball (cuantil) | Progresión de simple a probabilístico |
 
 ---
