@@ -17,14 +17,17 @@ Esto es un artefacto de la imputación. La Fase 0 debe caracterizarlo y resolver
 
 ## Contexto Crítico
 
-**Simple ML** es un término genérico. Para un río como el Orinoco, donde los datos faltantes
-pueden coincidir con eventos extremos (el sensor falla más durante crecidas por sobrecarga
-eléctrica o vandalismo), un método de imputación que no entienda la física del río puede:
+**¡ACTUALIZACIÓN FASE 0.5!** 
+Se recuperaron los archivos crudos originales del proveedor. Se confirmó que el archivo `.xlsx` previo fue contaminado por "Simple ML". El nuevo archivo oficial es `dataset_orinoco_true_raw.csv`. 
 
-**Situación real del dataset:** Solo existe la versión ya imputada. El dataset original
-(con brechas naturales) no está disponible para comparación directa. Esto significa que
-los tests que requieren "original vs imputado" se sustituyen por tests de **plausibilidad
-hidrológica** y **coherencia de la señal** sobre el único dataset disponible.
+Descubrimientos clave:
+- **Ayacucho:** 700 NaNs reales.
+- **Caicara:** 0 NaNs reales (Puro).
+- **Ciudad Bolívar:** 0 NaNs reales (Puro).
+- **Palúa:** 17 NaNs reales (Puro).
+- **El lag de 0 días entre C. Bolívar y Palúa es FÍSICO Y REAL**, causado por remanso del río Caroní, no por artefactos de imputación.
+
+Este manifiesto se da por **COMPLETADO Y SUPERADO**. La imputación se realizará en la Fase 1b bajo un estricto pipeline anti-leakage (Bidireccional para Train, Causal para Val/Test).
 
 1. **Aplanar picos de crecida:** Si el modelo suavizó valores durante brechas en agosto-septiembre,
    el LSTM aprenderá que las crecidas son menos severas de lo que realmente son.

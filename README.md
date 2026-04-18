@@ -26,9 +26,8 @@ Modelado predictivo multiestación del nivel hidrométrico del río Orinoco con 
 |-------|---------|
 | Rango temporal | 1974-01-01 a 2025-02-24 (~18,683 registros diarios) |
 | Estaciones | Puerto Ayacucho · Caicara · Ciudad Bolívar · Palúa |
-| Versión disponible | Única versión imputada con Simple ML (`dataset-orinoco.xlsx`) |
-| Dataset original | **No disponible** para comparación directa |
-| NaN conocidos | 17 en columna `palua`: todos los 29 de febrero (bisiestos 1976-2020) y 5 días en 1993 — artefacto de la imputación |
+| Formato Oficial | `data/raw/dataset_orinoco_true_raw.csv` (CSV, cronológico) |
+| Integridad | Caicara (0 NaNs), C. Bolívar (0 NaNs), Palúa (17 NaNs), Ayacucho (700 NaNs) |
 | Target del experimento | Configurable — cualquier estación del dataset |
 
 ## Hardware
@@ -129,7 +128,7 @@ Para trabajar correctamente con los notebooks y scripts:
 
 ### 4. Datos
 Colocar el dataset original en la ruta esperada:
-- `data/raw/dataset-orinoco.xlsx` (archivo único, ya imputado con Simple ML)
+- `data/raw/dataset_orinoco_true_raw.csv` (archivo crudo verificado, con NaNs reales)
 
 ### 5. Primer Paso de Ejecución
 ```bash

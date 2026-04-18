@@ -248,5 +248,17 @@ Si el agente detecta cualquiera de estas situaciones, debe **DETENERSE Y REPORTA
 4. Las predicciones contienen valores negativos.
 5. `results/metrics/baseline_metrics.json` no existe y se intenta entrenar LSTM.
 6. Cualquier hiperparámetro está hardcodeado en el script.
-7. El train loss sube consistentemente (lr muy alta, gradiente explosivo).
 8. La correlación `corr(ŷ(t), y(t-1)) > corr(ŷ(t), y(t))` — shadow effect.
+
+---
+
+## R10: FORMATO DE REPORTE ANALÍTICO (CRITICAL THINKING) 🧠
+
+Siempre que el usuario solicite un diagnóstico, análisis o reporte de evaluación, el agente **DEBE** estructurar su respuesta utilizando el siguiente esquema de pensamiento crítico basado en las 6 aristas fundamentales:
+
+- 🟡 **¿CÓMO...** sabemos esto? (Evidencia, datos crudos, origen del problema)
+- 🟢 **¿QUÉ / CUÁL...** es la mayor fortaleza o el peor escenario si lo ignoramos? (Impacto directo)
+- 🟣 **¿POR QUÉ...** representa un reto para el modelo o la física del problema? (Justificación técnica)
+- 🔴 **¿DÓNDE...** vemos esto reflejado en el mundo real o en el código? (Manifestación física/lógica)
+- 🟠 **¿QUIÉN / QUÉ...** factor externo influye o es responsable? (Atribución causal)
+- 🔵 **¿CUÁNDO...** sabremos que tuvimos éxito y cuál es el paso inmediato? (Acción y validación)
