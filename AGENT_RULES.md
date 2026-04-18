@@ -197,6 +197,12 @@ STATION_ORDER = {
 # ❌ INCORRECTO: pto_ayacucho, CB, bolivar, paloua
 ```
 
+### R9: GESTIÓN DE DEPENDENCIAS Y ENTORNOS VIRTUALES 🐍
+
+- **OBLIGATORIO:** Cualquier instalación de dependencias (`pip install`, etc.) o ejecución de scripts Python **DEBE** hacerse usando el entorno virtual del proyecto (`.venv`).
+- **NUNCA** instalar paquetes a nivel global (user site-packages). Si el entorno no está activado en la terminal, usar el path directo al ejecutable: `.venv/Scripts/python -m pip install ...` (en Windows) o `.venv/bin/pip install ...` (en Linux/Mac).
+- Las dependencias nuevas deben quedar registradas en `requirements.txt` o en el manifiesto de la fase.
+
 ---
 
 ## PREGUNTAS DE CONTROL POR FASE

@@ -52,6 +52,7 @@ pytest-cov>=4.1.0
 # --- Notebooks ---
 jupyter>=1.0.0
 ipykernel>=6.25.0
+nbformat>=5.0.0
 
 # --- Utilidades ---
 pyyaml>=6.0           # Leer config.yaml
