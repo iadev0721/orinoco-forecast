@@ -3,6 +3,8 @@
 > **BLOQUEANTE TOTAL.** Ninguna fase posterior puede ejecutarse hasta que este manifiesto
 > sea respondido en su totalidad en `notebooks/00_imputation_audit.ipynb`.
 
+> **PRINCIPIO FUNDAMENTAL:** TODAS las estaciones (Ayacucho, Caicara, Ciudad Bolívar, Palúa) son igual de críticas. El sistema es una cadena hidrodinámica completa. El análisis y el código no deben estar sesgados hacia ninguna estación en particular a menos que se trate del target explícitamente configurado.
+
 ## Propósito
 
 Determinar si el único dataset disponible (`dataset-orinoco.xlsx`, ya imputado con Simple ML)

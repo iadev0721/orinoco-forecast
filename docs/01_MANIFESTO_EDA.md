@@ -2,6 +2,8 @@
 
 > **Prerequisito:** Fase 0 completada. `results/metrics/phase0_verdict.json` debe existir.
 
+> **PRINCIPIO FUNDAMENTAL:** El análisis debe ser independiente de la estación target. El target se define en `config.yaml` y todo el pipeline debe adaptarse dinámicamente a él. Ninguna estación es "el centro" absoluto, todas son igual de importantes en la cadena hidrodinámica.
+
 ## Propósito
 
 Entender la naturaleza hidrológica de los datos antes de modelar. No se trata solo de graficar:
@@ -43,26 +45,22 @@ Reportar:
 ```
 ¿Cuál es el lag time empírico entre estaciones?
 Calcular cross-correlation y reportar el lag (días) donde se maximiza:
-  - Ayacucho → Caicara         (inferido preliminar: ~8 días)
-  - Caicara → Ciudad Bolívar   (inferido preliminar: ~4 días)
-  - Ciudad Bolívar → Palúa     (empírico preliminar: 0 días ⚠️ SOSPECHOSO)
-  - Ayacucho → Palúa (total)   (empírico: 12 días, corr=0.981)
-  - Caicara → Palúa (total)    (empírico: 4 días, corr=0.979)
+  - Estaciones consecutivas (ej: Ayacucho → Caicara, Caicara → Ciudad Bolívar)
+  - Estación aguas arriba → Target (configurado dinámicamente)
+  - Ayacucho → Target (lag total)
 
 INVESTIGAR OBLIGATORIAMENTE:
-El lag Ciudad Bolívar → Palúa = 0 días es físicamente implausible:
-  - Distancia carretera verificada: ~110-120 km
-  - Distancia fluvial: mayor (por meandros — sin datos oficiales sin carta náutica INC)
+Si el lag entre la estación adyacente y el target es 0 días, es físicamente implausible:
   - Celeridad de onda típica en ríos de llanura tropical: 30-80 km/día
-  - Lag físico esperado: 1-4 días
-Hipótesis a evaluar:
-  H1: El Caroní domina ambas estaciones simultáneamente (driver común aguas abajo)
-  H2: La imputación destruyó el lag natural en los tramos con datos faltantes
-  H3: El lag real existe pero es menor a 1 día (granularidad diaria no lo captura)
+  - Lag físico esperado: proporcional a la distancia
+Hipótesis a evaluar si lag=0:
+  H1: Un tributario no observado domina ambas estaciones simultáneamente.
+  H2: La imputación destruyó el lag natural en los tramos con datos faltantes.
+  H3: El lag real existe pero es menor a 1 día (granularidad diaria no lo captura).
 Documentar la conclusión y su implicación para el modelo en la sección de Limitaciones.
 
 ESTOS VALORES DETERMINAN EL LOOKBACK WINDOW MÍNIMO.
-Si el lag total Ayacucho→target supera 30 días, ajustar config.yaml.
+Si el lag total origen→target supera 30 días, ajustar config.yaml.
 ```
 
 ### PC-01-04: No-Estacionariedad Climática
@@ -94,11 +92,10 @@ Si existe un quiebre significativo, documentar año y causa probable.
 ```
 Calcular Sample Entropy para cada estación.
 ¿Cuál estación es más "predecible"?
-Hipótesis: si el target elegido es Palúa, debería tener entropía más alta por el
-efecto del Caroní (perturbación no observable en el dataset).
-Si el target es otra estación, comparar su entropía con el resto y justificar
+Comparar la entropía del target configurado con el resto y justificar
 si la elección es desafiante o conservadora — ambas son válidas, pero deben argumentarse.
-Si se confirma alta entropía en el target, esto justifica la necesidad de deep learning.
+Si se confirma alta entropía en el target (por ejemplo, debido a afluentes no observados),
+esto justifica la necesidad de usar modelos de deep learning.
 ```
 
 ---
@@ -128,11 +125,10 @@ El EDA debe analizar las 7 preguntas de control **desagregadas por régimen**.
     "ayacucho_to_caicara_days": null,
     "caicara_to_ciudad_bolivar_days": null,
     "ciudad_bolivar_to_palua_days": null,
-    "ayacucho_to_palua_total_days": 12,
-    "caicara_to_palua_total_days": 4,
-    "ciudad_bolivar_palua_lag0_hypothesis": "pending_eda",
+    "source_to_target_total_days": null,
+    "adjacent_to_target_lag0_hypothesis": "pending_eda",
     "recommended_lookback_window": 30,
-    "note": "Lags totales son empíricos (cross-corr 18683 registros). Lags por tramo pendientes de EDA.",
+    "note": "Lags calculados de forma dinámica respecto al target.",
     "executed_at": "YYYY-MM-DD"
   }
   ```

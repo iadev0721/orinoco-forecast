@@ -57,20 +57,19 @@ def find_optimal_lag(
     raise NotImplementedError("Implementar en Fase 1")
 
 
-def compute_all_lag_times(df: pd.DataFrame) -> Dict[str, int]:
+def compute_all_lag_times(df: pd.DataFrame, target_station: str) -> Dict[str, int]:
     """Calcula todos los lag times del sistema Orinoco.
 
     Pares evaluados:
-        - ayacucho → caicara
-        - caicara → ciudad_bolivar
-        - ciudad_bolivar → palua
-        - ayacucho → palua (lag total)
+        - Pares adyacentes (ej. ayacucho → caicara)
+        - Estaciones origen → target (ej. origen → target_station)
 
     Args:
         df: DataFrame con columnas por estación.
+        target_station: Estación definida como target en config.
 
     Returns:
         Dict con lag times en días por par de estaciones.
-        Formato: {"ayacucho_to_palua_total_days": 21, ...}
+        Formato: {"source_to_target_total_days": 21, ...}
     """
     raise NotImplementedError("Implementar en Fase 1")

@@ -2,6 +2,8 @@
 
 > **Prerequisito:** Fase 1 completada. `results/metrics/eda_lag_times.json` debe existir.
 
+> **PRINCIPIO FUNDAMENTAL:** El pipeline de features debe construirse dinámicamente utilizando el `target_station` definido en `config.yaml`. Está estrictamente prohibido hardcodear nombres de estaciones (como 'palua') en las operaciones de feature engineering.
+
 ## Propósito
 
 Transformar los datos crudos en tensores listos para el modelado **sin introducir sesgo**.
@@ -60,10 +62,10 @@ Verificar:
 ### PC-02-03: Suficiencia del Lookback Window
 ```
 ¿La ventana de entrada (lookback) captura el lag máximo del sistema?
-Si Ayacucho→Palúa tiene lag de X días (de EDA), lookback debe ser ≥ X.
+Si Origen→Target tiene lag de X días (de EDA), lookback debe ser ≥ X.
 
 Verificar contra eda_lag_times.json:
-  assert config['lookback_window'] >= eda_results['ayacucho_to_palua_total_days']
+  assert config['lookback_window'] >= eda_results['source_to_target_total_days']
 ```
 
 ### PC-02-04: Features Temporales Cíclicas
@@ -93,25 +95,29 @@ Verificar integridad de todos los tensores:
 ## Features Derivadas Obligatorias
 
 ```python
+# target = config['target_station']
+# upstream = ... # estación adyacente anterior según topología
+
 # 1. Codificación cíclica del día del año
 df['day_sin'] = np.sin(2 * np.pi * df.index.dayofyear / 365.25)
 df['day_cos'] = np.cos(2 * np.pi * df.index.dayofyear / 365.25)
 
 # 2. Tasa de cambio (velocidad del río)
-df['palua_delta_1d'] = df['palua'].diff(1)   # ¿subiendo o bajando?
-df['palua_delta_7d'] = df['palua'].diff(7)   # tendencia semanal
+df[f'{target}_delta_1d'] = df[target].diff(1)   # ¿subiendo o bajando?
+df[f'{target}_delta_7d'] = df[target].diff(7)   # tendencia semanal
 
 # 3. Estadísticas rodantes (rolling features)
-df['palua_rolling_mean_7'] = df['palua'].rolling(7).mean()
-df['palua_rolling_std_7'] = df['palua'].rolling(7).std()
+df[f'{target}_rolling_mean_7'] = df[target].rolling(7).mean()
+df[f'{target}_rolling_std_7'] = df[target].rolling(7).std()
 
 # 4. Ratio entre estaciones (proxy de gradiente hidráulico)
-df['ratio_caicara_palua'] = df['caicara'] / (df['palua'] + 0.01)
+# Asumiendo upstream_station la estación anterior en la topología
+df[f'ratio_{upstream}_{target}'] = df[upstream] / (df[target] + 0.01)
 
 # 5. Anomalía respecto al ciclo medio histórico
 #    NOTA: La climatología se calcula SOLO sobre el train set.
-climatology_train = df_train.groupby(df_train.index.dayofyear)['palua'].mean()
-df['palua_anomaly'] = df['palua'] - df.index.dayofyear.map(climatology_train)
+climatology_train = df_train.groupby(df_train.index.dayofyear)[target].mean()
+df[f'{target}_anomaly'] = df[target] - df.index.dayofyear.map(climatology_train)
 ```
 
 > **Pregunta abierta para el agente:** ¿Estas features van dentro de la ventana (columnas
@@ -120,26 +126,24 @@ df['palua_anomaly'] = df['palua'] - df.index.dayofyear.map(climatology_train)
 
 ---
 
-## Proxy del Caroní (Feature Opcional pero Recomendada)
+## Proxy de Afluente Externo (Feature Opcional)
 
 ```python
-# Si Ciudad Bolívar y Palúa están a ~50km, su diferencia debería ser
-# casi constante si solo fluyera el Orinoco. Cualquier desviación es
-# causada por un aporte externo (Caroní).
+# Si dos estaciones cercanas tienen una diferencia que fluctúa, 
+# puede ser causada por un aporte externo (ej: el Caroní para Palúa).
 
 # alpha y beta se estiman SOLO con datos de aguas bajas del train set
-# (cuando el Caroní aporta relativamente poco)
 from sklearn.linear_model import LinearRegression
 
-mask_low_water_train = (df_train['palua'] < df_train['palua'].quantile(0.25))
-X_calib = df_train.loc[mask_low_water_train, ['ciudad_bolivar']]
-y_calib = df_train.loc[mask_low_water_train, 'palua']
+mask_low_water_train = (df_train[target] < df_train[target].quantile(0.25))
+X_calib = df_train.loc[mask_low_water_train, [upstream]]
+y_calib = df_train.loc[mask_low_water_train, target]
 
 calib_model = LinearRegression().fit(X_calib, y_calib)
 alpha = calib_model.coef_[0]
 beta = calib_model.intercept_
 
-df['caroni_proxy'] = df['palua'] - (df['ciudad_bolivar'] * alpha + beta)
+df[f'tributary_proxy_{target}'] = df[target] - (df[upstream] * alpha + beta)
 ```
 
 ---
