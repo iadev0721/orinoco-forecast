@@ -19,12 +19,11 @@ val_end: "2020-12-31"
 # test: 2021-01-01 a 2025-02-24 (implícito)
 
 # --- Rutas de datos ---
-# NOTA: Solo existe una versión del dataset (ya imputada con Simple ML).
-# El archivo original (con brechas) NO está disponible. La Fase 0 audita la calidad
-# del único dataset disponible, incluyendo 17 NaN en palua (artefacto de años bisiestos
-# y 5 días de 1993 — a investigar en PC-00-01).
+# NOTA: Se recuperó el dataset crudo original (dataset_orinoco_true_raw.csv).
+# El dataset imputado legacy (.xlsx) fue descartado por contaminación metodológica.
+# La imputación se realizará internamente en la Fase 1b (anti-leakage).
 data:
-  raw: "data/raw/dataset-orinoco.xlsx"          # Único dataset: 18,683 registros 1974-2025
+  raw: "data/raw/dataset_orinoco_true_raw.csv"  # Dataset oficial con NaNs reales
   audited: "data/processed/dataset_audited.parquet"
   final: "data/processed/dataset_final.parquet"
   enso: "data/external/enso_oni_index.csv"

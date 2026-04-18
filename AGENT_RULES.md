@@ -25,13 +25,11 @@ El `MinMaxScaler` fue aplicado al dataset completo antes de particionar.
 Esto invalida cualquier métrica reportada porque el scaler "vio" los min/max del test set.
 **→ Ver R1 para la corrección.**
 
-### ❌ Error Heredado #2: Imputación no auditada
-Solo existe **una versión del dataset** (`dataset-orinoco.xlsx`), ya imputada con Simple ML.
-El dataset original (con brechas naturales) no está disponible para comparación directa.
-Se conocen 17 NaN en `palua` (años bisiestos + 5 días de 1993) que son artefactos de la
-imputación. No se sabe qué método usó Simple ML internamente ni si introdujo
-autocorrelaciones artificiales en los tramos imputados.
-**→ La Fase 0 audita la calidad del único dataset disponible (no compara dos versiones).**
+### ❌ Error Heredado #2: Imputación de Caja Negra (Simple ML)
+El proyecto usaba una versión del dataset (`dataset-orinoco.xlsx`) contaminada por "Simple ML".
+No se sabía qué método se usó internamente ni si introdujo autocorrelaciones artificiales.
+**→ Corrección (Fase 0.5):** Se recuperó el dataset crudo real (`dataset_orinoco_true_raw.csv`) con NaNs físicos verdaderos.
+**→ Acción:** Se descarta el `.xlsx`. La imputación la realizaremos nosotros en la Fase 1b bajo estricto control anti-leakage. La Fase 0 (auditoría del legacy) queda obsoleta.
 
 ### ❌ Error Heredado #3: Inconsistencia de frameworks
 El proyecto osciló entre PyTorch y TensorFlow/Keras sin decisión formal.
