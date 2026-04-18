@@ -93,25 +93,47 @@ orinoco-forecast/
 └── results/                           # Métricas, figuras, pesos (en .gitignore)
 ```
 
-## Instalación
+## Configuración Inicial del Entorno (Humanos y Agentes)
 
+Para asegurar la reproducibilidad y evitar conflictos de dependencias (ver Regla R9), sigue estos pasos rigurosos para configurar tu entorno local y tu IDE (ej. VS Code, Cursor):
+
+### 1. Preparar el repositorio y el entorno virtual
 ```bash
-# 1. Clonar el repositorio
+# Clonar el repositorio
 git clone https://github.com/iadev0721/orinoco-forecast.git
 cd orinoco-forecast
 
-# 2. Crear entorno virtual
+# Crear el entorno virtual en la carpeta raíz
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-.venv\Scripts\activate     # Windows
 
-# 3. Instalar dependencias
+# Activar el entorno virtual
+source .venv/bin/activate     # Linux/Mac
+.venv\Scripts\activate        # Windows
+```
+
+### 2. Instalar dependencias y pre-commits
+Con el entorno virtual activado (`(.venv)` debe aparecer en tu terminal):
+```bash
+# Instalar todas las dependencias del proyecto
 pip install -r requirements.txt
 
-# 4. Colocar el dataset en data/raw/
-# - dataset-orinoco.xlsx  (archivo único, ya imputado con Simple ML)
+# Configurar los hooks de pre-commit para calidad de código
+pre-commit install
+```
 
-# 5. Ejecutar desde Fase 0
+### 3. Configuración del IDE (VS Code / Cursor)
+Para trabajar correctamente con los notebooks y scripts:
+1. **Extensiones necesarias:** Asegúrate de instalar las extensiones oficiales de **Python** y **Jupyter**.
+2. **Selección de Intérprete Python:** Presiona `Ctrl+Shift+P` (o `Cmd+Shift+P`), busca `Python: Select Interpreter` y elige el que está dentro de la carpeta `.venv`.
+3. **Selección de Kernel para Notebooks:** Al abrir un archivo `.ipynb` (como el de la Fase 0), haz clic en el selector de kernel arriba a la derecha y selecciona **"Python Environments"** -> **".venv"**. Esto asegura que Jupyter use las dependencias correctas (pandas, seaborn, statsmodels).
+
+### 4. Datos
+Colocar el dataset original en la ruta esperada:
+- `data/raw/dataset-orinoco.xlsx` (archivo único, ya imputado con Simple ML)
+
+### 5. Primer Paso de Ejecución
+```bash
+# Iniciar la Fase 0
 jupyter notebook notebooks/00_imputation_audit.ipynb
 ```
 
