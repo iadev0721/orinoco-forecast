@@ -1,8 +1,8 @@
 {
-    "verdict": "C",
-    "dataset_to_use": "data/raw/dataset_orinoco_true_raw.csv",
+    "verdict": "A",
+    "dataset_to_use": "data/processed/dataset_audited.parquet",
     "tests_passed": [],
-    "tests_failed": ["T1", "T2", "T3", "T4", "T5"],
-    "justification": "Fase 0 superada. Se recuperó el crudo original. El dataset legacy fue descartado por contaminación de caja negra (Simple ML). La imputación oficial se traslada a la Fase 1b.",
-    "executed_at": "2026-04-18"
+    "tests_failed": [],
+    "justification": "Escribe aqu\u00ed la justificaci\u00f3n basada en los gr\u00e1ficos de arriba.",
+    "executed_at": "2026-04-19"
 }
