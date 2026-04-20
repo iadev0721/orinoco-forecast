@@ -40,13 +40,18 @@ results:
 # REGLA R8: Nomenclatura oficial de estaciones
 #
 # NOTA SOBRE DISTANCIAS (km_relative):
-#   Son distancias RELATIVAS tomando Ayacucho como referencia 0.
-#   Las distancias fluviales reales (por cauce) requieren cartas náuticas
+#   Son distancias RELATIVAS por CARRETERA tomando Ayacucho como referencia 0.
+#   Fuente: Google Maps (verificadas por el autor, 2026-04-19).
+#   Las distancias fluviales (por cauce) son diferentes y requieren cartas náuticas
 #   del INC (Instituto Nacional de Canalizaciones) — no disponibles en fuentes públicas.
-#   Las distancias por carretera verificadas:
-#     Ayacucho → Caicara: ~340-350 km (Troncal 12)
-#     Caicara → Ciudad Bolívar: ~365-370 km
-#     Ciudad Bolívar → Palúa (San Félix/Ciudad Guayana): ~110-120 km
+#   Distancias por carretera (Google Maps):
+#     Ayacucho → Caicara:        339 km  (tramo medido directamente)
+#     Caicara → Ciudad Bolívar:  359 km  (tramo medido directamente)
+#     Ciudad Bolívar → Palúa:    119 km  (tramo medido directamente)
+#     Ayacucho → Palúa (directo): 791 km (ruta directa A→D, Google Maps)
+#   NOTA: La suma de segmentos (339+359+119=817 km) difiere de la ruta directa (791 km)
+#   por optimización de rutas que hace Google Maps al no pasar por cada ciudad intermedia.
+#   Se usa la medición directa A→D por ser la más defendible.
 #
 # NOTA SOBRE lag_to_target_days:
 #   Valores EMPÍRICOS calculados por cross-correlación sobre 18,683 registros reales
@@ -56,25 +61,27 @@ results:
 #   o efecto del Caroní como driver dominante. Investigar en PC-01-03.
 stations:
   ayacucho:
-    km_relative: 0              # Referencia relativa (no desde la naciente real)
+    km_relative: 0              # Referencia base. Fuente: Google Maps (2026-04-19)
     order: 0
     role: "upstream_far"
     lag_to_target_days: 12      # Empírico: cross-corr dataset real (corr=0.981)
   caicara:
-    km_relative: 500            # Aproximado — distancia relativa a Ayacucho
+    km_relative: 339            # Verificado: 339 km por carretera desde Ayacucho
     order: 1
     role: "upstream_mid"
     lag_to_target_days: 4       # Empírico: cross-corr dataset real (corr=0.979)
   ciudad_bolivar:
-    km_relative: 900            # Aproximado — distancia relativa a Ayacucho
+    km_relative: 698            # Verificado: 339 + 359 km por carretera desde Ayacucho
     order: 2
     role: "upstream_near"
     lag_to_target_days: 0       # Empírico: cross-corr dataset real (corr=0.993)
                                 # ⚠️ Investigar en EDA PC-01-03: lag=0 sospechoso
   palua:
-    km_relative: 1000           # Corregido: ~110-120 km carretera desde Ciudad Bolívar
+    km_relative: 791            # Verificado: ruta directa Ayacucho→Palúa (Google Maps)
+                                # OJO: suma de segmentos da 817 km (discrepancia de 26 km
+                                # por optimización de rutas de Google Maps)
     order: 3
-    role: "downstream_target"   # Sin "default" — es un target configurable más
+    role: "configurable_target" # Sin "default" — es un target configurable más
 
 # --- Hiperparámetros: LSTM (Keras) --- MODELO CORE
 lstm:

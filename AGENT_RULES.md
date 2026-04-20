@@ -39,6 +39,72 @@ El proyecto osciló entre PyTorch y TensorFlow/Keras sin decisión formal.
 Se intentó implementar redes neuronales sin un modelo naive evaluado.
 **→ Ver R3 (Baseline Primero).**
 
+### ❌ Error Heredado #5: Paluacentrismo (Sesgo Topológico)
+El proyecto y sus agentes asumían por defecto que la estación "Palúa" era el único objetivo (target) importante por su relevancia industrial, sesgando el código y la arquitectura hacia ella.
+**→ Justificación Hidrológica:** La cadena hidrodinámica es ininterrumpida. Si le das prioridad exclusiva a Palúa, el modelo queda ciego a la dinámica del sistema completo y pierdes la capacidad de predecir inundaciones en otras estaciones (Clean Architecture).
+**→ Acción Definitiva:** El código, los manifiestos y los agentes DEBEN ser Topológicamente Agnósticos. NINGUNA estación tiene prioridad sobre otra. El `target_station` es estrictamente dinámico y definido en `config.yaml`. NUNCA asumas cuál es el target ni centres las explicaciones exclusivas en Palúa.
+
+---
+
+## CAMBIOS DE SESIÓN — 2026-04-19
+
+> Este bloque documenta los cambios arquitectónicos realizados en la sesión del 2026-04-19.
+> Todo agente que reanude el trabajo DEBE leer esta sección antes de modificar cualquier archivo.
+
+### 📍 Distancias km_relative Corregidas
+
+Las distancias entre estaciones fueron actualizadas con mediciones verificadas en Google Maps (2026-04-19).
+**Fuente: Google Maps, medición directa por el autor.**
+
+| Estación | Antes (aprox.) | Ahora (verificado) |
+|---|---|---|
+| ayacucho | 0 | 0 (referencia) |
+| caicara | 500 | 339 km (tramo directo) |
+| ciudad_bolivar | 900 | 698 km (339+359) |
+| palua | 1000 | 791 km (ruta directa A→D) |
+
+NOTA: Suma de tramos = 817 km ≠ ruta directa = 791 km. Discrepancia de 26 km. Se usa la directa.
+Actualizados en: `config.yaml` y `docs/STATION_TOPOLOGY.md`.
+
+### 📍 Estrategia Multi-Radar NASA POWER (Multi-Source Exogenous Input)
+
+Se creó el script `src/data/download_nasa_power.py` con 6 radares hidrológicos.
+Cada radar captura la precipitación de una sub-cuenca específica **antes** de que esa agua llegue a las estaciones de medición.
+
+```
+Radar            Lat/Lon          Sub-cuenca cubierta
+───────────────────────────────────────────────────────────────────────
+amazonas         4.5°N, -67.6°W  Alto Orinoco (upstream de Ayacucho)
+apure_meta       7.5°N, -69.5°W  Llanos occidentales / trib. Apure y Meta
+ventuari         4.0°N, -66.0°W  Río Ventuari (sur, entre Ayacucho y Caicara)
+llanos_centrales 8.0°N, -66.5°W  Llanos centrales Guárico (norte, Caicara→Cd. Bolívar)
+caura            6.0°N, -64.5°W  Escudo Guayanés occidental / Río Caura
+caroni           5.5°N, -62.0°W  Gran Sabana / Río Caroní (mayor tributario del Orinoco)
+```
+
+Dataset resultante: `data/processed/dataset_orinoco_multivariado_final.csv`
+Columnas totales: 22 (4 estaciones + 6 radares × 3 variables: precipitacion_mm, temp_media_c, humedad_especifica)
+Rango temporal: 1981–2024 (8 años pre-1981 del río sin soporte climático).
+Ver: `docs/STATION_TOPOLOGY.md` para el mapa completo de cobertura.
+
+### ⚠️ Fuente de Datos Temporal (Revertir antes de la Fase 1b)
+
+Por solicitud explícita del autor (2026-04-19), el script `src/data/download_nasa_power.py`
+fue configurado TEMPORALMENTE para usar el dataset legacy imputado:
+
+```python
+# ESTADO ACTUAL (temporal)
+RAW_RIVER_PATH = "data/raw/legacy_imputed/orinoco_dataset_legacy_simpleml.csv"
+
+# DEBE REVERTIRSE A (antes de experimentos formales de la Fase 1b)
+RAW_RIVER_PATH = "data/raw/dataset_orinoco_true_raw.csv"
+```
+
+**!!! TODO AGENTE QUE LLEGUE AQUÍ DEBE VERIFICAR QUE EL RAW_RIVER_PATH SEA EL CORRECTO !!!**
+El dataset legacy SimpleML puede contener data leakage (ver Error Heredado #2).
+Su uso es aceptable para exploración rápida, NO para el entrenamiento formal del modelo.
+
+
 ---
 
 ## REGLAS ABSOLUTAS (NUNCA VIOLAR)

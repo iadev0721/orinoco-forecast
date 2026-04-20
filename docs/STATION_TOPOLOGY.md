@@ -58,10 +58,12 @@
 
 ```python
 STATION_ORDER = {
-    "ayacucho":        {"km_relative": 0,    "order": 0},
-    "caicara":         {"km_relative": 500,  "order": 1},
-    "ciudad_bolivar": {"km_relative": 900,  "order": 2},
-    "palua":           {"km_relative": 1000, "order": 3},
+    "ayacucho":        {"km_relative": 0,   "order": 0},  # Verificado (referencia)
+    "caicara":         {"km_relative": 339, "order": 1},  # Verificado: Google Maps 2026-04-19
+    "ciudad_bolivar": {"km_relative": 698, "order": 2},  # Verificado: 339+359 km
+    "palua":           {"km_relative": 791, "order": 3},  # Verificado: ruta directa A→D
+    # NOTA: suma de tramos = 817 km. Ruta directa Google Maps Ayacucho→Palúa = 791 km.
+    # Discrepancia de 26 km por optimización de rutas. Se usa medición directa.
 }
 
 
@@ -110,7 +112,33 @@ def get_predictors(target: str, station_graph: dict) -> dict:
 # target = "ayacucho"       → primary: [], excluded: [caicara, ciudad_bolivar, palua] (solo autoreg.)
 ```
 
-## El Punto Ciego: El Río Caroní
+## Cobertura de Radares Climáticos (NASA POWER) — Implementado 2026-04-19
+
+Para cubrir los puntos ciegos de la cuenca, se implementó una estrategia de
+**Multi-Source Exogenous Input** con 6 radares NASA POWER, uno por sub-cuenca.
+Script: `src/data/download_nasa_power.py`.
+Dataset resultante: `data/processed/dataset_orinoco_multivariado_final.csv`
+
+```
+Segmento                  Radar                Lat/Lon           Avisa a
+────────────────────────────────────────────────────────────────────────────────
+Upstream Ayacucho         amazonas             4.5°N, -67.6°W   Ayacucho (lag ~12d)
+Ayacucho→Caicara (N)     apure_meta           7.5°N, -69.5°W   Caicara
+Ayacucho→Caicara (S)     ventuari             4.0°N, -66.0°W   Orinoco Medio
+Caicara→Cd. Bolívar (N)  llanos_centrales     8.0°N, -66.5°W   Caicara→Cd. Bolívar
+Caicara→Cd. Bolívar (S)  caura                6.0°N, -64.5°W   Ciudad Bolívar
+Cd. Bolívar→Palúa        caroni               5.5°N, -62.0°W   Aguas abajo (*)
+```
+
+(*) El Caroní está parcialmente regulado por el Embalse del Guri (Corpoelec).
+Los datos de lluvia capturan la tendencia estacional pero NO las decisiones
+antropógenas de apertura de compuertas. Documentar como limitación en la tesis.
+
+**Variables por radar:** `{nombre}_precipitacion_mm`, `{nombre}_temp_media_c`, `{nombre}_humedad_especifica`
+**Total columnas en el dataset final:** 22 (4 estaciones + 6 radares × 3 variables)
+**Rango temporal de los radares:** 1981–2024 (NASA POWER, inicio satelital)
+**NOTA:** Los 7 años 1974–1980 del dataset del río NO tienen datos climáticos de apoyo.
+
 
 El río Caroní es el principal afluente del Orinoco en el tramo inferior de la cuenca
 y desemboca directamente en el Orinoco en la zona de Palúa/San Félix (Ciudad Guayana).
