@@ -346,16 +346,44 @@ if __name__ == "__main__":
     for col in df_river.columns:
         df_river[col] = df_river[col].interpolate(method="time", limit=3)
 
-    # 4. Fusión: río + clima + ENSO (inner join — solo fechas compartidas)
-    logger.info("Fusionando: rio + radares + ENSO...")
+    # 4. Cargar nivel del Guri ya procesado (generado por src/data/process_guri.py)
+    #    Fuente original: DAHITI ID-67 (dahiti.dgfi.tum.de)
+    #    Lag estimado Guri → Palúa: 1-3 días (Macagua es run-of-river)
+    GURI_DAILY_PATH = "data/processed/guri_nivel_diario.csv"
+    logger.info("Cargando Guri diario: %s", GURI_DAILY_PATH)
+    df_guri = pd.read_csv(GURI_DAILY_PATH, parse_dates=["fecha"])
+    df_guri.set_index("fecha", inplace=True)
+
+    # 5. Fusión: río + clima + ENSO + Guri
+    logger.info("Fusionando: rio + radares + ENSO + Guri...")
     df_final = df_river \
         .merge(df_climate, left_index=True, right_index=True, how="inner") \
-        .merge(df_enso,    left_index=True, right_index=True, how="left")
+        .merge(df_enso,    left_index=True, right_index=True, how="left") \
+        .merge(df_guri,    left_index=True, right_index=True, how="left")
 
     # ENSO empieza en 1950 pero la fusión deja algunos NaN al inicio → forward fill
     df_final["enso_oni"] = df_final["enso_oni"].ffill()
 
-    # 5. Guardar
+    # Guri empieza en 1992 → los años anteriores (1981-1992) quedan NaN
+    # Se imputan con la media estacional del periodo disponible para no perder filas
+    guri_mean_by_doy = df_final["guri_nivel_m"].groupby(
+        df_final.index.day_of_year
+    ).transform("mean")
+    df_final["guri_nivel_m"] = df_final["guri_nivel_m"].fillna(guri_mean_by_doy)
+    logger.info("Guri: NaN anteriores a 1992 imputados con media estacional por dia del año")
+
+    # 6. Variables cíclicas de estacionalidad
+    #    Justificación: permiten al modelo distinguir la posición dentro del ciclo anual
+    #    sin asumir linealidad. Usando seno+coseno se representa el ciclo completo
+    #    (el modelo sabe que el dia 365 es adyacente al dia 1).
+    #    Referencia: Keras Time Series tutorial; Hyndman & Athanasopoulos (2021) cap. 12
+    import numpy as np
+    dia_del_ano = df_final.index.day_of_year
+    df_final["estacionalidad_seno"]   = np.sin(2 * np.pi * dia_del_ano / 365.25)
+    df_final["estacionalidad_coseno"] = np.cos(2 * np.pi * dia_del_ano / 365.25)
+    logger.info("Variables ciclicas anadidas: estacionalidad_seno, estacionalidad_coseno")
+
+    # 7. Guardar
     df_final.to_csv(OUTPUT_PATH)
 
     logger.info("Dataset final guardado: %s", OUTPUT_PATH)
