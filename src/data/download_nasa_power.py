@@ -41,8 +41,11 @@ Ecuación del balance hídrico que justifica la selección de variables:
 7. enso_oni
    → Factor interanual dominante. Años Niña = inundaciones, Niño = sequías.
 
-TOTAL DE COLUMNAS RESULTANTES: 30
-  4 (río) + 6 (precip) + 6 (temp) + 1 (hum. espec.) + 6 (hum. suelo) + 6 (ET) + 1 (ENSO)
+TOTAL DE COLUMNAS RESULTANTES: 31
+  4 (río) + 6 (precip) + 6 (temp) + 1 (hum. espec.) + 6 (hum. suelo) + 6 (ET) + 1 (ENSO) + 1 (Guri)
+
+SALIDA: data/processed/dataset_orinoco_base.csv  (datos crudos, sin feature engineering)
+FEATURE ENGINEERING: ver src/features/build_features.py
 ------------------------------------------------------------------------
 
 Reglas aplicadas: R6 (código inglés), R7 (parámetros centralizados), R9 (venv).
@@ -129,11 +132,11 @@ START_YEAR: int = 1981      # Inicio de datos satelitales NASA POWER
 END_YEAR: int = 2024
 
 # Rutas del repositorio (R7: no hardcodear fuera de esta sección)
-# ⚠️ CAMBIAR A 'data/raw/dataset_orinoco_true_raw.csv' antes de experimentos formales
-# Ver AGENT_RULES.md → CAMBIOS DE SESIÓN 2026-04-19 → Fuente de Datos Temporal
 RAW_RIVER_PATH: str = "data/raw/legacy_imputed/orinoco_dataset_legacy_simpleml.csv"
 ENSO_OUTPUT_PATH: str = "data/external/enso_oni_index.csv"
-OUTPUT_PATH: str = "data/processed/dataset_orinoco_multivariado_final.csv"
+# Salida: dataset BASE sin feature engineering (rolling, cíclicas, imputación Guri)
+# Feature engineering → src/features/build_features.py
+OUTPUT_PATH: str = "data/processed/dataset_orinoco_base.csv"
 
 
 # ==============================================================================
@@ -361,31 +364,19 @@ if __name__ == "__main__":
         .merge(df_enso,    left_index=True, right_index=True, how="left") \
         .merge(df_guri,    left_index=True, right_index=True, how="left")
 
-    # ENSO empieza en 1950 pero la fusión deja algunos NaN al inicio → forward fill
+    # ENSO empieza en 1950 → forward fill para NaN al inicio del rango
     df_final["enso_oni"] = df_final["enso_oni"].ffill()
 
-    # Guri empieza en 1992 → los años anteriores (1981-1992) quedan NaN
-    # Se imputan con la media estacional del periodo disponible para no perder filas
-    guri_mean_by_doy = df_final["guri_nivel_m"].groupby(
-        df_final.index.day_of_year
-    ).transform("mean")
-    df_final["guri_nivel_m"] = df_final["guri_nivel_m"].fillna(guri_mean_by_doy)
-    logger.info("Guri: NaN anteriores a 1992 imputados con media estacional por dia del año")
+    # NOTA: Guri empieza en 1992. Los NaN pre-1992 se dejan intencionales.
+    # La imputación (media estacional + flag guri_imputado) se hace en
+    # src/features/build_features.py para mantener la separación de responsabilidades.
 
-    # 6. Variables cíclicas de estacionalidad
-    #    Justificación: permiten al modelo distinguir la posición dentro del ciclo anual
-    #    sin asumir linealidad. Usando seno+coseno se representa el ciclo completo
-    #    (el modelo sabe que el dia 365 es adyacente al dia 1).
-    #    Referencia: Keras Time Series tutorial; Hyndman & Athanasopoulos (2021) cap. 12
-    import numpy as np
-    dia_del_ano = df_final.index.day_of_year
-    df_final["estacionalidad_seno"]   = np.sin(2 * np.pi * dia_del_ano / 365.25)
-    df_final["estacionalidad_coseno"] = np.cos(2 * np.pi * dia_del_ano / 365.25)
-    logger.info("Variables ciclicas anadidas: estacionalidad_seno, estacionalidad_coseno")
-
-    # 7. Guardar
+    # 6. Guardar base dataset (sin feature engineering)
     df_final.to_csv(OUTPUT_PATH)
 
-    logger.info("Dataset final guardado: %s", OUTPUT_PATH)
-    logger.info("Filas     : %d", len(df_final))
-    logger.info("Columnas  : %s", list(df_final.columns))
+    logger.info("Dataset BASE guardado: %s", OUTPUT_PATH)
+    logger.info("Filas    : %d", len(df_final))
+    logger.info("Columnas : %s", list(df_final.columns))
+    logger.info("NaN en guri_nivel_m (pre-1992): %d filas",
+                df_final["guri_nivel_m"].isna().sum())
+    logger.info("Siguiente paso: python src/features/build_features.py")
