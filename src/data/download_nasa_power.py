@@ -129,7 +129,7 @@ RADAR_PAUSE_S: float = 10.0 # Pausa extra entre radares (evita reset de conexió
 MAX_RETRIES: int = 3        # Reintentos por bloque ante errores de red
 
 START_YEAR: int = 1981      # Inicio de datos satelitales NASA POWER
-END_YEAR: int = 2024
+END_YEAR: int = 2025
 
 # Rutas del repositorio (R7: no hardcodear fuera de esta sección)
 RAW_RIVER_PATH: str = "data/raw/legacy_imputed/orinoco_dataset_legacy_simpleml.csv"
@@ -357,26 +357,28 @@ if __name__ == "__main__":
     df_guri = pd.read_csv(GURI_DAILY_PATH, parse_dates=["fecha"])
     df_guri.set_index("fecha", inplace=True)
 
-    # 5. Fusión: río + clima + ENSO + Guri
-    logger.info("Fusionando: rio + radares + ENSO + Guri...")
-    df_final = df_river \
-        .merge(df_climate, left_index=True, right_index=True, how="inner") \
-        .merge(df_enso,    left_index=True, right_index=True, how="left") \
-        .merge(df_guri,    left_index=True, right_index=True, how="left")
+    # 5. Exportar datasets por separado (cortados hasta 31 Dic 2025) sin fusionar
+    CUTOFF_DATE = "2025-02-24"
+    
+    df_climate_cropped = df_climate.loc[:CUTOFF_DATE]
+    NASA_OUT_PATH = "data/processed/nasa_power_radares.csv"
+    logger.info("Guardando datos de NASA POWER en CSV (hasta %s): %s", CUTOFF_DATE, NASA_OUT_PATH)
+    df_climate_cropped.to_csv(NASA_OUT_PATH)
+    
+    df_guri_cropped = df_guri.loc[:CUTOFF_DATE]
+    GURI_OUT_PATH = "data/processed/guri_nivel_diario_separado.csv"
+    logger.info("Guardando datos del Guri en CSV (hasta %s): %s", CUTOFF_DATE, GURI_OUT_PATH)
+    df_guri_cropped.to_csv(GURI_OUT_PATH)
+    
+    logger.info("Datasets exportados exitosamente sin fusionar.")
 
-    # ENSO empieza en 1950 → forward fill para NaN al inicio del rango
-    df_final["enso_oni"] = df_final["enso_oni"].ffill()
-
-    # NOTA: Guri empieza en 1992. Los NaN pre-1992 se dejan intencionales.
-    # La imputación (media estacional + flag guri_imputado) se hace en
-    # src/features/build_features.py para mantener la separación de responsabilidades.
-
-    # 6. Guardar base dataset (sin feature engineering)
-    df_final.to_csv(OUTPUT_PATH)
-
-    logger.info("Dataset BASE guardado: %s", OUTPUT_PATH)
-    logger.info("Filas    : %d", len(df_final))
-    logger.info("Columnas : %s", list(df_final.columns))
-    logger.info("NaN en guri_nivel_m (pre-1992): %d filas",
-                df_final["guri_nivel_m"].isna().sum())
-    logger.info("Siguiente paso: python src/features/build_features.py")
+    # --- LÓGICA DE FUSIÓN COMENTADA A PETICIÓN DEL USUARIO ---
+    # logger.info("Fusionando: rio + radares + ENSO + Guri...")
+    # df_final = df_river \
+    #     .merge(df_climate, left_index=True, right_index=True, how="inner") \
+    #     .merge(df_enso,    left_index=True, right_index=True, how="left") \
+    #     .merge(df_guri,    left_index=True, right_index=True, how="left")
+    # 
+    # df_final["enso_oni"] = df_final["enso_oni"].ffill()
+    # df_final.to_csv(OUTPUT_PATH)
+    # logger.info("Dataset BASE guardado: %s", OUTPUT_PATH)
