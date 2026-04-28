@@ -88,8 +88,30 @@ orinoco-forecast/
 │   └── utils/                         # GPU config, reproducibilidad
 │
 ├── docs/                              # Manifiestos con preguntas de control
+│   └── 05_TRAINING_WORKFLOW.md        # Documentación de scripts de entrenamiento
 ├── tests/                             # Tests de integridad del pipeline
 └── results/                           # Métricas, figuras, pesos (en .gitignore)
+```
+
+## Flujo de Trabajo y Entrenamiento
+
+El repositorio cuenta con una infraestructura estandarizada para entrenar, evaluar y comparar modelos. Está diseñada para evitar conflictos entre miembros del equipo y facilitar la reproducibilidad. 
+
+Por favor, lee la guía detallada: **[`docs/05_TRAINING_WORKFLOW.md`](./docs/05_TRAINING_WORKFLOW.md)**.
+
+### Resumen de comandos
+```bash
+# Ejecutar un experimento (ej: baseline naive)
+python scripts/run_experiment.py --name mi_baseline --model naive
+
+# Entrenar un LSTM con overrides
+python scripts/run_experiment.py --name lstm_128_64 --model lstm --units 128 64
+
+# Evaluar un entrenamiento individual (genera reporte y 5 figuras científicas)
+python scripts/evaluate_experiment.py --name lstm_128_64
+
+# Comparar todos los experimentos del equipo
+python scripts/compare_experiments.py
 ```
 
 ## Configuración Inicial del Entorno (Humanos y Agentes)
