@@ -104,7 +104,11 @@ def log_environment_versions() -> dict:
     try:
         import tensorflow as tf
         versions["tensorflow"] = tf.__version__
-        versions["keras"] = tf.keras.__version__
+        try:
+            import keras
+            versions["keras"] = keras.__version__
+        except ImportError:
+            versions["keras"] = getattr(tf.keras, "__version__", "unknown")
     except ImportError:
         pass
 
