@@ -185,8 +185,17 @@ def build_tensors(
     config_path: str = "config.yaml",
     features_path: str = "data/processed/dataset_orinoco_features.csv",
     scaler_path: str = "results/models/scaler.joblib",
+    cfg_override: dict = None,
 ) -> Dict[str, np.ndarray]:
     """Función principal: carga, divide, escala y genera todos los tensores.
+
+    Args:
+        config_path: Ruta al config.yaml (se ignora si se pasa cfg_override).
+        features_path: Ruta al CSV de features.
+        scaler_path: Ruta donde guardar el scaler.
+        cfg_override: Si se pasa, usa este dict en lugar de leer config.yaml.
+                      Útil para aplicar overrides de CLI (--lookback, --units, etc.)
+                      sin que build_tensors sobreescriba esos valores al releer el YAML.
 
     Uso:
         tensors = build_tensors()
@@ -198,7 +207,7 @@ def build_tensors(
         Diccionario con X_train, y_train, X_val, y_val, X_test, y_test
         y metadata adicional (feature_cols, target_col, dates_test).
     """
-    cfg = load_config(config_path)
+    cfg = cfg_override if cfg_override is not None else load_config(config_path)
 
     target_station: str = cfg["target_station"]
     target_col: str     = target_station

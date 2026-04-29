@@ -121,8 +121,9 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
     # R5: Configurar GPU (usa gpu_config)
     configure_tensorflow_gpu()
 
-    # Construir tensores
-    tensors    = build_tensors(config_path="config.yaml")
+    # Construir tensores — pasamos cfg ya modificado para que los overrides
+    # (ej. --lookback 90) afecten también a los tensores de entrada
+    tensors    = build_tensors(cfg_override=cfg)
     X_train    = tensors["X_train"]
     y_train    = tensors["y_train"]
     X_val      = tensors["X_val"]

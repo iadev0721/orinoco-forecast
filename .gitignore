@@ -34,6 +34,7 @@ mlartifacts/
 
 # --- Entornos virtuales ---
 .venv/
+.venv_wsl/        # Entorno WSL2 — symlinks incompatibles con git en Windows
 venv/
 env/
 ENV/
