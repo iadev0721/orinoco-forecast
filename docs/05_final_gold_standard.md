@@ -83,3 +83,24 @@ Como experimento final, **se duplicó la capacidad de la red a `[128, 64]` neuro
 ![Ensemble XL vs Real](../results/figures/ensemble_residual_lags_xl_plot.png)
 
 Este resultado demuestra que, una vez que las features físicas correctas están en el dataset (Lags, ENSO), la red necesita suficiente capacidad matemática para extraer todo su valor sin incurrir en overfitting (el MAE de Validación se mantuvo estable en 15.7 cm, confirmando la generalización).
+
+---
+
+## 6. Última Frontera: Expandiendo la Ventana de Memoria a 150 días
+
+A pesar del éxito del modelo XL de 90 días, un análisis estacional de los residuos reveló errores sistemáticos en meses de transición hidrológica prolongada, específicamente durante **junio** (pico de aceleración de la crecida) y **noviembre** (caída estacional). El análisis sugirió que el modelo con *lookback* de 90 días adolecía de miopía temporal: en junio, una ventana de 90 días retrocede hasta marzo, perdiéndose el inicio de la acumulación de humedad en la cuenca durante enero y febrero.
+
+Para solventar esta limitación, se expandió el `lookback` a **150 días** (5 meses). Esto permitió a la red LSTM observar un semestre completo de antecedentes climáticos antes de emitir un pronóstico, englobando todo el ciclo de transición (seco a húmedo y viceversa).
+
+**Resultados del Experimento Lb150:**
+* **Supresión del Sesgo de Noviembre:** El error absoluto durante noviembre colapsó un 54%, pasando de 35.0 cm a **16.1 cm**.
+* **Mejora en la Transición Húmeda a Seca:** Los errores de septiembre y octubre se redujeron en ~2.0 cm adicionales.
+* **Nuevo Récord Operacional Absoluto:** El MAE en Test rompió la marca de los 14 cm, alcanzando un inédito **13.3 cm**, reduciendo drásticamente el RMSE a 19.9 cm.
+
+| Iteración Final Absoluta | MAE Test | RMSE Test | NSE Test | KGE Val |
+| :--- | :--- | :--- | :--- | :--- |
+| `ensemble_lb150_lags_xl` (150 días, 128 units) | **13.3 cm** | **19.9 cm** | **0.9959** | **0.9951** |
+
+![Ensemble Lb150 XL vs Real](../results/figures/ensemble_lb150_lags_xl_plot.png)
+
+Este hallazgo confirma de manera rotunda la hipótesis fundamental: en mega-cuencas tropicales de respuesta lenta como el Orinoco, **la memoria del sistema es excepcionalmente larga**. Combinar 150 días de historial pluviométrico, retardos hidráulicos (*lags* aguas arriba) y modulación macroclimática (ENSO), procesados por una arquitectura de Deep Learning con alta capacidad no lineal (`[128, 64]`), ha permitido tocar el verdadero límite de predictibilidad teórica impuesto por la estocasticidad atmosférica local.
