@@ -15,7 +15,7 @@ REGLA R7: Parámetros leídos de config.yaml.
 """
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import joblib
 import numpy as np
@@ -186,7 +186,7 @@ def build_tensors(
     features_path: str = "data/processed/dataset_orinoco_features.csv",
     scaler_path: str = "results/models/scaler.joblib",
     cfg_override: dict = None,
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, Any]:
     """Función principal: carga, divide, escala y genera todos los tensores.
 
     Args:

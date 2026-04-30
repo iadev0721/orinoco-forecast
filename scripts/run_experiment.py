@@ -28,7 +28,6 @@ Comparar todos los experimentos despues:
     python scripts/compare_experiments.py
 """
 import argparse
-import copy
 import json
 import logging
 import sys
@@ -48,7 +47,13 @@ from src.models.lstm_model import (
     check_baseline_gate,
     train_lstm,
 )
-from src.models.naive_baseline import run_baselines, NaiveBaseline, SeasonalNaive
+from src.models.naive_baseline import run_baselines, SeasonalNaive
+from src.models.transformer_model import (
+    build_transformer_model,
+    predict_transformer,
+    train_transformer,
+)
+from src.utils.gpu_config import configure_pytorch_gpu
 from src.utils.gpu_config import configure_tensorflow_gpu
 from src.utils.reproducibility import log_environment_versions, set_global_seeds
 
@@ -91,7 +96,6 @@ def run_naive(cfg: dict, tracker: ExperimentTracker) -> None:
 
     # Guardar predicciones del SeasonalNaive para graficas
     sea = SeasonalNaive(horizon=horizon)
-    naive = NaiveBaseline(horizon=horizon)
     dates_list, y_trues, y_preds = [], [], []
     max_t = len(df_test) - horizon
     for i in range(max_t):
@@ -207,10 +211,87 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
 
 
 def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
-    """Placeholder para el Transformer (PyTorch). Implementar en Fase 4."""
-    raise NotImplementedError(
-        "Transformer aun no implementado. Ver src/models/transformer_model.py.\n"
-        "Implementar en Fase 4 de la tesis."
+    """Entrena el Transformer y registra el experimento."""
+    check_baseline_gate(cfg["results"]["baseline_metrics"])
+    configure_pytorch_gpu()
+
+    transformer_cfg = cfg.get("transformer", {})
+    features_path = transformer_cfg.get("features_path", "data/processed/joined_legacy_nasa.csv")
+
+    tensors = build_tensors(features_path=features_path, cfg_override=cfg)
+    X_train = tensors["X_train"]
+    y_train = tensors["y_train"]
+    X_val = tensors["X_val"]
+    y_val = tensors["y_val"]
+    X_test = tensors["X_test"]
+    y_test = tensors["y_test"]
+    scaler_y = tensors["scaler_y"]
+    test_dates = tensors["test_dates"]
+
+    logger.info("Shape tensores -> X_train:%s  y_train:%s", X_train.shape, y_train.shape)
+
+    model = build_transformer_model(cfg, n_features=X_train.shape[2], horizon=cfg["forecast_horizon"])
+    history = train_transformer(
+        model,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        config=cfg,
+        experiment_name=tracker.name,
+    )
+    tracker.log_training_history(history)
+
+    def inv(arr_2d: np.ndarray) -> np.ndarray:
+        result = np.zeros_like(arr_2d)
+        for col in range(arr_2d.shape[1]):
+            result[:, col] = scaler_y.inverse_transform(
+                arr_2d[:, col].reshape(-1, 1)
+            ).ravel()
+        return result
+
+    y_pred_real = inv(predict_transformer(model, X_test, batch_size=transformer_cfg.get("batch_size", 32)))
+    y_test_real = inv(y_test)
+
+    y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
+    y_pred_real = apply_physical_constraints(y_pred_real, cfg, y_train_max=y_train_max)
+
+    test_metrics = compute_all_metrics(y_test_real, y_pred_real)
+    tracker.log_metrics(test_metrics, split="test")
+
+    y_val_pred_real = inv(predict_transformer(model, X_val, batch_size=transformer_cfg.get("batch_size", 32)))
+    y_val_real = inv(y_val)
+    val_metrics = compute_all_metrics(y_val_real, y_val_pred_real)
+    tracker.log_metrics(val_metrics, split="val")
+
+    with open(cfg["results"]["baseline_metrics"]) as f:
+        baseline = json.load(f)
+    best_baseline_nse = max(
+        baseline["naive_baseline"]["nse"],
+        baseline["seasonal_naive"]["nse"],
+    )
+    if test_metrics["nse"] <= best_baseline_nse:
+        logger.warning(
+            "BANDERA ROJA: Transformer NSE=%.4f NO supera baseline NSE=%.4f.",
+            test_metrics["nse"], best_baseline_nse,
+        )
+    else:
+        logger.info(
+            "OK: Transformer NSE=%.4f supera baseline NSE=%.4f (mejora: +%.4f)",
+            test_metrics["nse"], best_baseline_nse,
+            test_metrics["nse"] - best_baseline_nse,
+        )
+
+    detect_shadow_effect(
+        pd.Series(y_test_real[:, -1]),
+        pd.Series(y_pred_real[:, -1]),
+    )
+
+    tracker.log_predictions(
+        test_dates,
+        y_test_real[:, -1],
+        y_pred_real[:, -1],
+        horizon=cfg["forecast_horizon"],
     )
 
 

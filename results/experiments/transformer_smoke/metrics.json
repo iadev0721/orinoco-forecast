@@ -1,0 +1,23 @@
+{
+  "experiment_name": "transformer_smoke",
+  "model_type": "transformer",
+  "timestamp": "2026-04-30T00:39:54.983876",
+  "metrics": {
+    "test": {
+      "mae": 0.6065389513969421,
+      "rmse": 0.792891800403595,
+      "nse": 0.9482432007789612,
+      "kge": 0.9479201321736929,
+      "kge_r": 0.9740557829824511,
+      "kge_alpha": 0.95562744140625,
+      "kge_beta": 0.9916163086891174
+    }
+  },
+  "training": {
+    "epochs_trained": 2,
+    "best_epoch": 2,
+    "final_train_loss": 0.006660810609065278,
+    "final_val_loss": 0.0026914723990958626,
+    "best_val_loss": 0.0026914723990958626
+  }
+}

@@ -1,57 +1,137 @@
 """
 src/models/transformer_model.py
 =================================
-Transformer para Series Temporales en PyTorch. PLUS ACADÉMICO.
+Transformer para series temporales en PyTorch.
 
-El mecanismo de self-attention permite al modelo ponderar directamente
-qué días del pasado son más relevantes para la predicción.
+El modelo toma una secuencia con forma (batch, lookback, n_features) y aprende
+qué días del pasado importan más para predecir un horizonte multistep.
 
-RESTRICCIONES DE HARDWARE (RTX 3060, 6 GB VRAM):
-    - batch_size MÁXIMO: 32
-    - d_model MÁXIMO: 64
-    - Si OOM: reducir batch_size a 16, no reducir d_model.
+La implementación sigue la tesis:
+    - Entrada: secuencias temporales ya escaladas.
+    - Bloque lineal + positional encoding.
+    - TransformerEncoder con self-attention.
+    - Cabeza MLP para producir los 7 pasos futuros.
 
-REGLA R5:
-    import torch
-    torch.cuda.empty_cache()  # Al inicio de cada experimento
-
-REGLA R3: check_baseline_gate() debe ejecutarse antes del entrenamiento.
+REGLAS OBLIGATORIAS:
+    - R2: semillas fijadas antes de entrenar.
+    - R3: baseline_metrics.json debe existir antes de entrenar.
+    - R4: aplicar restricciones físicas en inferencia.
+    - R5: limpiar cache de PyTorch antes del experimento.
+    - R7: hiperparámetros desde config.yaml.
 """
 import logging
-from typing import Optional
+import math
+from pathlib import Path
+from typing import Dict, List
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# TODO: Implementar en Fase 4 (Plus Académico)
-# Prerequisito: LSTM entrenado y evaluado (baseline_metrics.json existe)
+
+def _validate_array(name: str, array: np.ndarray) -> None:
+    """Verifica que un tensor no contenga NaNs ni infinitos.
+
+    Args:
+        name: Nombre lógico del tensor para el mensaje de error.
+        array: Arreglo a validar.
+
+    Raises:
+        ValueError: Si el arreglo contiene NaN o infinito.
+    """
+    if not np.isfinite(array).all():
+        raise ValueError(f"{name} contiene NaN o infinitos. Revisar el pipeline antes de entrenar.")
+
+
+class PositionalEncoding:
+    """Codificación posicional sinusoidal para secuencias temporales."""
+
+    def __init__(self, d_model: int, dropout: float, max_len: int) -> None:
+        import torch
+        from torch import nn
+
+        self.dropout = nn.Dropout(dropout)
+
+        position = torch.arange(max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float32)
+            * (-math.log(10000.0) / d_model)
+        )
+        pe = torch.zeros(max_len, d_model, dtype=torch.float32)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.pe = pe.unsqueeze(0)
+
+    def __call__(self, x):
+        """Aplica la codificación posicional al lote de secuencias."""
+        return self.dropout(x + self.pe[:, : x.size(1)].to(x.device))
 
 
 def build_transformer_model(config: dict, n_features: int, horizon: int):
     """Construye el modelo Transformer según la configuración.
 
-    Arquitectura:
-        Positional Encoding
-        TransformerEncoder (num_layers capas de self-attention)
-        Linear(d_model → horizon)
-
-    Hiperparámetros (de config.yaml):
-        d_model: 64
-        nhead: 4
-        num_layers: 2
-        dim_feedforward: 128
-        batch_size: 32 (máximo RTX 3060)
-
     Args:
-        config: Configuración del experimento.
-        n_features: Número de features en el tensor de entrada.
-        horizon: Número de días a predecir.
+        config: Diccionario de configuración cargado desde config.yaml.
+        n_features: Número de variables de entrada por día.
+        horizon: Número de pasos futuros a predecir.
 
     Returns:
-        Modelo PyTorch nn.Module.
+        Instancia de nn.Module lista para entrenamiento.
     """
-    raise NotImplementedError("Implementar en Fase 4")
+    from torch import nn
+
+    transformer_cfg = config["transformer"]
+    d_model = int(transformer_cfg.get("d_model", 64))
+    nhead = int(transformer_cfg.get("nhead", 4))
+    num_layers = int(transformer_cfg.get("num_layers", 2))
+    dim_feedforward = int(transformer_cfg.get("dim_feedforward", 128))
+    dropout = float(transformer_cfg.get("dropout", 0.1))
+    lookback = int(config["lookback_window"])
+
+    class TimeSeriesTransformer(nn.Module):
+        """Transformer encoder para regresión multistep."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.input_projection = nn.Linear(n_features, d_model)
+            self.positional_encoding = PositionalEncoding(d_model, dropout, lookback)
+
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                batch_first=True,
+                activation="gelu",
+                norm_first=True,
+            )
+            self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            self.head = nn.Sequential(
+                nn.LayerNorm(d_model),
+                nn.Linear(d_model, d_model),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(d_model, horizon),
+            )
+
+        def forward(self, x):
+            x = self.input_projection(x)
+            x = self.positional_encoding(x)
+            x = self.encoder(x)
+            last_token = x[:, -1, :]
+            return self.head(last_token)
+
+    model = TimeSeriesTransformer()
+    logger.info(
+        "Modelo Transformer construido: lookback=%d, n_features=%d, d_model=%d, nhead=%d, layers=%d, horizon=%d",
+        lookback,
+        n_features,
+        d_model,
+        nhead,
+        num_layers,
+        horizon,
+    )
+    return model
 
 
 def train_transformer(
@@ -61,18 +141,161 @@ def train_transformer(
     X_val: np.ndarray,
     y_val: np.ndarray,
     config: dict,
+    experiment_name: str = "transformer",
 ) -> dict:
-    """Entrena el modelo Transformer con EarlyStopping.
+    """Entrena el Transformer con early stopping.
 
     Args:
-        model: Modelo PyTorch.
-        X_train: Tensores de entrenamiento.
-        y_train: Targets de entrenamiento.
-        X_val: Tensores de validación.
-        y_val: Targets de validación.
+        model: Modelo PyTorch construido por build_transformer_model().
+        X_train: Tensor de entrenamiento con forma (n, lookback, n_features).
+        y_train: Objetivos de entrenamiento con forma (n, horizon).
+        X_val: Tensor de validación.
+        y_val: Objetivos de validación.
         config: Configuración del experimento.
+        experiment_name: Nombre del experimento para guardar el mejor checkpoint.
 
     Returns:
-        Dict con train_loss y val_loss por época.
+        Historial con listas de loss y val_loss por época.
     """
-    raise NotImplementedError("Implementar en Fase 4")
+    import torch
+    from torch import nn
+    from torch.utils.data import DataLoader, TensorDataset
+
+    transformer_cfg = config["transformer"]
+    batch_size = int(transformer_cfg.get("batch_size", 32))
+    max_epochs = int(transformer_cfg.get("max_epochs", 100))
+    patience = int(transformer_cfg.get("patience", 10))
+    learning_rate = float(transformer_cfg.get("learning_rate", 1e-4))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    _validate_array("X_train", X_train)
+    _validate_array("y_train", y_train)
+    _validate_array("X_val", X_val)
+    _validate_array("y_val", y_val)
+
+    train_dataset = TensorDataset(
+        torch.from_numpy(X_train).float(),
+        torch.from_numpy(y_train).float(),
+    )
+    val_dataset = TensorDataset(
+        torch.from_numpy(X_val).float(),
+        torch.from_numpy(y_val).float(),
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=min(batch_size, len(train_dataset)), shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=min(batch_size, len(val_dataset)), shuffle=False)
+
+    model = model.to(device)
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+
+    best_path = Path(f"results/models/{experiment_name}_best.pt")
+    best_path.parent.mkdir(parents=True, exist_ok=True)
+    best_val_loss = float("inf")
+    patience_counter = 0
+    history: Dict[str, List[float]] = {"loss": [], "val_loss": []}
+
+    logger.info(
+        "Iniciando entrenamiento Transformer: epochs=%d, batch=%d, patience=%d, lr=%g",
+        max_epochs,
+        batch_size,
+        patience,
+        learning_rate,
+    )
+
+    for epoch in range(max_epochs):
+        model.train()
+        running_loss = 0.0
+        seen_samples = 0
+
+        for batch_x, batch_y in train_loader:
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+
+            optimizer.zero_grad(set_to_none=True)
+            predictions = model(batch_x)
+            loss = criterion(predictions, batch_y)
+            loss.backward()
+            optimizer.step()
+
+            batch_size_actual = batch_x.size(0)
+            running_loss += float(loss.item()) * batch_size_actual
+            seen_samples += batch_size_actual
+
+        train_loss = running_loss / max(seen_samples, 1)
+
+        model.eval()
+        val_running_loss = 0.0
+        val_seen_samples = 0
+        with torch.no_grad():
+            for batch_x, batch_y in val_loader:
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+                predictions = model(batch_x)
+                loss = criterion(predictions, batch_y)
+
+                batch_size_actual = batch_x.size(0)
+                val_running_loss += float(loss.item()) * batch_size_actual
+                val_seen_samples += batch_size_actual
+
+        val_loss = val_running_loss / max(val_seen_samples, 1)
+        history["loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+
+        logger.info(
+            "Epoca %d/%d | loss=%.6f | val_loss=%.6f",
+            epoch + 1,
+            max_epochs,
+            train_loss,
+            val_loss,
+        )
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            torch.save(model.state_dict(), best_path)
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                logger.info("Early stopping activado en la epoca %d.", epoch + 1)
+                break
+
+    if best_path.exists():
+        model.load_state_dict(torch.load(best_path, map_location=device))
+
+    return history
+
+
+def predict_transformer(
+    model,
+    X: np.ndarray,
+    batch_size: int = 32,
+) -> np.ndarray:
+    """Genera predicciones para un lote de secuencias.
+
+    Args:
+        model: Modelo entrenado.
+        X: Tensor de entrada con forma (n, lookback, n_features).
+        batch_size: Tamaño de lote para inferencia.
+
+    Returns:
+        Array de predicciones con forma (n, horizon).
+    """
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+
+    _validate_array("X", X)
+
+    device = next(model.parameters()).device
+    dataset = TensorDataset(torch.from_numpy(X).float())
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    model.eval()
+    predictions: List[np.ndarray] = []
+    with torch.no_grad():
+        for (batch_x,) in loader:
+            batch_x = batch_x.to(device)
+            batch_pred = model(batch_x).cpu().numpy()
+            predictions.append(batch_pred)
+
+    return np.concatenate(predictions, axis=0) if predictions else np.empty((0, 0), dtype=np.float32)

@@ -105,6 +105,7 @@ transformer:
   max_epochs: 100
   patience: 10
   learning_rate: 0.0001
+  features_path: "data/processed/joined_legacy_nasa_cleaned.csv"  # Apunta al CSV limpiado por scripts/clean_target_missing.py
 
 # --- Reproducibilidad ---
 seed: 42
