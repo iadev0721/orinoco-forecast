@@ -1,0 +1,27 @@
+{
+  "experiment": "lstm_heavy",
+  "verdict": "DISTRIBUTION_SHIFT",
+  "confidence": "MEDIA",
+  "evidence": [
+    "NSE Validaci\u00f3n = 0.9901",
+    "NSE Test       = 0.9716",
+    "Brecha val-test= 0.0185 (1.85 puntos NSE)",
+    "MAE Test es un 70.6% mayor que MAE Val",
+    "Ratio val_loss/train_loss (final) = 1.41",
+    "Mejor \u00e9poca: 21/36 (ratio=0.58)"
+  ],
+  "warnings": [],
+  "recommendation": "El modelo generaliza bien sobre el per\u00edodo de validaci\u00f3n pero el conjunto de prueba tiene din\u00e1micas distintas. Esto no es un problema de arquitectura: faltan variables f\u00edsicas clave (ej. caudal de descarga de Guri) que capturen los cambios en el r\u00e9gimen del r\u00edo entre 2018 y 2025.",
+  "metrics_summary": {
+    "nse_val": 0.9900697683915496,
+    "nse_test": 0.9715526830404997,
+    "nse_gap": 0.0185170853510499,
+    "mae_val": 0.2579349875450134,
+    "mae_test": 0.44007450342178345,
+    "kge_test": 0.9007784007945525,
+    "loss_ratio": 1.4148176895983549,
+    "best_epoch": 21,
+    "epochs_trained": 36,
+    "epoch_ratio": 0.5833333333333334
+  }
+}

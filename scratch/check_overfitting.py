@@ -76,5 +76,5 @@ def check_overfitting(exp_name):
 
 if __name__ == "__main__":
     import sys
-    exp = sys.argv[1] if len(sys.argv) > 1 else ""
+    exp = sys.argv[1] if len(sys.argv) > 1 else "lstm_residual_lb90"
     check_overfitting(exp)

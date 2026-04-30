@@ -74,9 +74,11 @@ def build_lstm_model(config: dict, n_features: int):
     from tensorflow import keras
 
     lstm_cfg = config["lstm"]
-    units    = lstm_cfg.get("units", [64, 32])
-    dropout  = lstm_cfg.get("dropout", 0.2)
-    lr       = lstm_cfg.get("learning_rate", 0.001)
+    units       = lstm_cfg.get("units", [64, 32])
+    dropout     = lstm_cfg.get("dropout", 0.2)
+    lr          = lstm_cfg.get("learning_rate", 0.001)
+    loss_name   = lstm_cfg.get("loss", "mse")          # 'mse' | 'mae' | 'huber'
+    huber_delta = lstm_cfg.get("huber_delta", 0.5)     # solo aplica si loss='huber'
     horizon  = config["forecast_horizon"]
     lookback = config["lookback_window"]
 
@@ -89,9 +91,22 @@ def build_lstm_model(config: dict, n_features: int):
     outputs = keras.layers.Dense(horizon, activation="linear", name="output")(x)
 
     model = keras.Model(inputs, outputs, name="orinoco_lstm")
+
+    # Seleccion de funcion de perdida
+    if loss_name == "huber":
+        loss_fn = keras.losses.Huber(delta=huber_delta)
+        logger.info("Loss: Huber(delta=%.2f) -- atenua outliers >%.2f en espacio escalado",
+                    huber_delta, huber_delta)
+    elif loss_name == "mae":
+        loss_fn = "mae"
+        logger.info("Loss: MAE")
+    else:
+        loss_fn = "mse"
+        logger.info("Loss: MSE (default)")
+
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=lr),
-        loss="mse",
+        loss=loss_fn,
         metrics=["mae"],
     )
     logger.info(

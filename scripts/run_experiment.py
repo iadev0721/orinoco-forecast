@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 def run_naive(cfg: dict, tracker: ExperimentTracker) -> None:
     """Ejecuta los modelos Naive y los registra como un experimento."""
-    features_path = "data/processed/dataset_orinoco_features.csv"
+    features_path = cfg.get("_features_path", "data/processed/dataset_orinoco_features.csv")
     df = pd.read_csv(features_path, parse_dates=["fecha"]).set_index("fecha").sort_index()
     _, _, df_test = split_data(df, cfg["train_end"], cfg["val_end"])
 
@@ -114,16 +114,26 @@ def run_naive(cfg: dict, tracker: ExperimentTracker) -> None:
 
 
 def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
-    """Entrena el modelo LSTM y registra el experimento."""
+    """Entrena el modelo LSTM y registra el experimento.
+    
+    Si cfg['use_residual'] es True, el modelo aprende a predecir el DELTA
+    (cambio en nivel) en lugar del nivel absoluto. La prediccion final se
+    reconstruye como: nivel_pred = nivel_actual + delta_pred.
+    Esto fuerza al modelo a competir directamente con el baseline Naive
+    (que predice delta=0 siempre), usando los features climaticos solo
+    para detectar CUANDO el rio va a cambiar.
+    """
     # Gate R3 (usa lstm_model.check_baseline_gate)
     check_baseline_gate(cfg["results"]["baseline_metrics"])
 
     # R5: Configurar GPU (usa gpu_config)
     configure_tensorflow_gpu()
 
-    # Construir tensores — pasamos cfg ya modificado para que los overrides
-    # (ej. --lookback 90) afecten también a los tensores de entrada
-    tensors    = build_tensors(cfg_override=cfg)
+    features_path = cfg.get("_features_path", "data/processed/dataset_orinoco_features.csv")
+    use_residual  = cfg.get("use_residual", False)
+
+    # Construir tensores
+    tensors    = build_tensors(cfg_override=cfg, features_path=features_path)
     X_train    = tensors["X_train"]
     y_train    = tensors["y_train"]
     X_val      = tensors["X_val"]
@@ -135,10 +145,68 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
 
     logger.info("Shape tensores -> X_train:%s  y_train:%s", X_train.shape, y_train.shape)
 
-    # Construir modelo (usa lstm_model.build_lstm_model)
+    # --- ARQUITECTURA RESIDUAL (predecir delta en lugar de nivel absoluto) ---
+    # y_base_train[i] = nivel escalado en el ultimo paso del lookback de la muestra i
+    # El LSTM aprende: y_delta = y_target - y_base
+    # En inferencia: y_pred = y_base + y_delta_pred
+    if use_residual:
+        logger.info("MODO RESIDUAL ACTIVO: el modelo aprende delta = nivel_futuro - nivel_actual")
+        # X_train shape: (n, lookback, n_features). La columna del target en X
+        # no esta disponible directamente, pero si y_train[i,0] es el nivel en t+1,
+        # el nivel en t (ultimo del lookback) esta en y_train[i-1, -1] aproximadamente.
+        # Mas simple y correcto: usar el ultimo valor conocido de y antes del horizonte.
+        # y_train[i] corresponde a data_y[i+lookback:i+lookback+horizon]
+        # El nivel base es data_y[i+lookback-1] = y_train[i-1,-1] para i>0
+        # Usamos el valor de y_train desplazado 1 sample atras, horizon=1 como base
+        # Para evitar complejidad: extraemos el nivel base de los tensores X (ultima fila)
+        # target_col_idx: buscar el indice del target en feature_cols (NO incluido en X)
+        # En cambio, usamos y_train mismo: nivel_base[i] = nivel en t = y_train[i,0] - delta[i,0]
+        # La forma mas directa: reconstruir y_base desde el scaler y los datos crudos.
+        # y_train escalado: shape (n, horizon). Necesitamos y[i, j] - y[i, 0] + y_base[i]
+        # donde y_base[i] es el nivel en t (ultimo dia del lookback de muestra i).
+        # Implementacion: el nivel en t para la muestra i es el ultimo elemento de X[i]
+        # que corresponde al target. Sin embargo X no incluye el target (excluido por get_feature_columns).
+        # Solucion limpia: cargar la serie del target y alinearla.
+        df_full = pd.read_csv(features_path, parse_dates=["fecha"]).set_index("fecha").sort_index()
+        target_col = cfg["target_station"]
+        lookback   = cfg["lookback_window"]
+        horizon    = cfg["forecast_horizon"]
+        train_end  = cfg["train_end"]
+        val_end    = cfg["val_end"]
+
+        from src.data.pipeline import split_data
+        df_tr, df_va, df_te = split_data(df_full, train_end, val_end)
+
+        # Nivel base escalado: el ultimo dia del lookback para cada muestra
+        y_raw_tr = scaler_y.transform(df_tr[[target_col]]).ravel()
+        y_raw_va = scaler_y.transform(df_va[[target_col]]).ravel()
+        y_raw_te = scaler_y.transform(df_te[[target_col]]).ravel()
+
+        def get_base_levels(y_raw, n_samples):
+            """Nivel base (ultimo dia del lookback) para cada muestra."""
+            # muestra i: lookback termina en indice i+lookback-1
+            return np.array([y_raw[i + lookback - 1] for i in range(n_samples)], dtype=np.float32)
+
+        base_train = get_base_levels(y_raw_tr, len(y_train))  # (n_train,)
+        base_val   = get_base_levels(y_raw_va, len(y_val))
+        base_test  = get_base_levels(y_raw_te, len(y_test))
+
+        # Transformar targets a deltas: delta[i,j] = nivel[i,j] - base[i]
+        y_train_orig = y_train.copy()
+        y_val_orig   = y_val.copy()
+        y_test_orig  = y_test.copy()
+
+        y_train = y_train - base_train[:, np.newaxis]  # broadcast sobre horizon
+        y_val   = y_val   - base_val[:, np.newaxis]
+        y_test  = y_test  - base_test[:, np.newaxis]
+
+        logger.info("Delta stats (train) - mean:%.4f std:%.4f min:%.4f max:%.4f",
+                    y_train.mean(), y_train.std(), y_train.min(), y_train.max())
+
+    # Construir modelo
     model = build_lstm_model(cfg, n_features=X_train.shape[2])
 
-    # Entrenamiento (usa lstm_model.train_lstm)
+    # Entrenamiento
     history = train_lstm(
         model, X_train, y_train, X_val, y_val,
         config=cfg,
@@ -155,20 +223,35 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
             ).ravel()
         return result
 
-    y_pred_real = inv(model.predict(X_test, verbose=0))
-    y_test_real = inv(y_test)
+    if use_residual:
+        # Predicciones de delta (en espacio escalado)
+        delta_pred_test = model.predict(X_test, verbose=0)  # (n, horizon)
+        delta_pred_val  = model.predict(X_val,  verbose=0)
+
+        # Reconstruir nivel: nivel_pred = nivel_base + delta_pred
+        y_pred_scaled_test = base_test[:, np.newaxis] + delta_pred_test
+        y_pred_scaled_val  = base_val[:, np.newaxis]  + delta_pred_val
+
+        y_pred_real     = inv(y_pred_scaled_test)
+        y_test_real     = inv(y_test_orig)
+        y_val_pred_real = inv(y_pred_scaled_val)
+        y_val_real      = inv(y_val_orig)
+        logger.info("RESIDUAL: predicciones reconstruidas como nivel_base + delta_pred")
+    else:
+        y_pred_real     = inv(model.predict(X_test, verbose=0))
+        y_test_real     = inv(y_test)
+        y_val_pred_real = inv(model.predict(X_val, verbose=0))
+        y_val_real      = inv(y_val)
 
     # R4: Restricciones fisicas sobre predicciones
-    y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])  # max en escala original
+    y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
     y_pred_real = apply_physical_constraints(y_pred_real, cfg, y_train_max=y_train_max)
 
-    # Metricas test (usa metrics.compute_all_metrics)
+    # Metricas test
     test_metrics = compute_all_metrics(y_test_real, y_pred_real)
     tracker.log_metrics(test_metrics, split="test")
 
     # Metricas validacion
-    y_val_pred_real = inv(model.predict(X_val, verbose=0))
-    y_val_real      = inv(y_val)
     val_metrics = compute_all_metrics(y_val_real, y_val_pred_real)
     tracker.log_metrics(val_metrics, split="val")
 
@@ -245,6 +328,12 @@ def main() -> None:
                         help="Override: lstm.learning_rate")
     parser.add_argument("--batch",    type=int, default=None,
                         help="Override: lstm.batch_size")
+    parser.add_argument("--features_path", type=str, default=None,
+                        help="Override: ruta al CSV de features (default: dataset_orinoco_features.csv)")
+    parser.add_argument("--train_end", type=str, default=None,
+                        help="Override: fecha de fin del train set (YYYY-MM-DD)")
+    parser.add_argument("--val_end",   type=str, default=None,
+                        help="Override: fecha de fin del val set (YYYY-MM-DD)")
     args = parser.parse_args()
 
     logger.info("=" * 60)
@@ -269,6 +358,15 @@ def main() -> None:
     if args.batch is not None:
         cfg["lstm"]["batch_size"] = args.batch
         logger.info("Override: lstm.batch_size = %d", args.batch)
+    if args.train_end is not None:
+        cfg["train_end"] = args.train_end
+        logger.info("Override: train_end = %s", args.train_end)
+    if args.val_end is not None:
+        cfg["val_end"] = args.val_end
+        logger.info("Override: val_end = %s", args.val_end)
+    # Guardar features_path en cfg para que run_lstm/run_naive lo usen
+    cfg["_features_path"] = args.features_path or "data/processed/dataset_orinoco_features.csv"
+    logger.info("Features path: %s", cfg["_features_path"])
 
     # R2: Seeds
     set_global_seeds(cfg["seed"])

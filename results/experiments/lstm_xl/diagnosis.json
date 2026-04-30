@@ -1,0 +1,30 @@
+{
+  "experiment": "lstm_xl",
+  "verdict": "DISTRIBUTION_SHIFT",
+  "confidence": "MEDIA",
+  "evidence": [
+    "NSE Validaci\u00f3n = 0.9923",
+    "NSE Test       = 0.9746",
+    "Brecha val-test= 0.0177 (1.77 puntos NSE)",
+    "MAE Test es un 92.4% mayor que MAE Val",
+    "Ratio val_loss/train_loss (final) = 1.76",
+    "Mejor \u00e9poca: 5/20 (ratio=0.25)"
+  ],
+  "warnings": [
+    "\u26a0 INFORMATION CEILING: el modelo alcanz\u00f3 su mejor \u00e9poca muy temprano (\u00e9poca 5 de 20). Los features disponibles parecen no contener m\u00e1s informaci\u00f3n predictiva. Agregar nuevas variables de entrada.",
+    "\u26a0 Leve sobreajuste en loss (ratio=1.76): se\u00f1al temprana. Monitorear si empeora con m\u00e1s \u00e9pocas."
+  ],
+  "recommendation": "El modelo generaliza bien sobre el per\u00edodo de validaci\u00f3n pero el conjunto de prueba tiene din\u00e1micas distintas. Esto no es un problema de arquitectura: faltan variables f\u00edsicas clave (ej. caudal de descarga de Guri) que capturen los cambios en el r\u00e9gimen del r\u00edo entre 2018 y 2025.",
+  "metrics_summary": {
+    "nse_val": 0.9922982780262828,
+    "nse_test": 0.9746240302920341,
+    "nse_gap": 0.017674247734248638,
+    "mae_val": 0.22219499945640564,
+    "mae_test": 0.4275457262992859,
+    "kge_test": 0.9069912927419035,
+    "loss_ratio": 1.7553725847708908,
+    "best_epoch": 5,
+    "epochs_trained": 20,
+    "epoch_ratio": 0.25
+  }
+}
