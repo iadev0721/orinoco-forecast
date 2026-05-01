@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,17 @@ def _validate_array(name: str, array: np.ndarray) -> None:
         raise ValueError(f"{name} contiene NaN o infinitos. Revisar el pipeline antes de entrenar.")
 
 
-class PositionalEncoding:
-    """Codificación posicional sinusoidal para secuencias temporales."""
+class PositionalEncoding(torch.nn.Module):
+    """Codificación posicional sinusoidal para secuencias temporales.
+
+    Hereda de nn.Module para que su capa Dropout quede registrada
+    como submódulo y se desactive correctamente en model.eval().
+    """
 
     def __init__(self, d_model: int, dropout: float, max_len: int) -> None:
         import torch
         from torch import nn
-
+        super().__init__()
         self.dropout = nn.Dropout(dropout)
 
         position = torch.arange(max_len, dtype=torch.float32).unsqueeze(1)
@@ -60,11 +65,12 @@ class PositionalEncoding:
         pe = torch.zeros(max_len, d_model, dtype=torch.float32)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.pe = pe.unsqueeze(0)
+        # register_buffer: el tensor se mueve a GPU con .to(device) automáticamente
+        self.register_buffer("pe", pe.unsqueeze(0))
 
-    def __call__(self, x):
+    def forward(self, x):
         """Aplica la codificación posicional al lote de secuencias."""
-        return self.dropout(x + self.pe[:, : x.size(1)].to(x.device))
+        return self.dropout(x + self.pe[:, : x.size(1)])
 
 
 def build_transformer_model(config: dict, n_features: int, horizon: int):
@@ -122,6 +128,8 @@ def build_transformer_model(config: dict, n_features: int, horizon: int):
             return self.head(last_token)
 
     model = TimeSeriesTransformer()
+    # PositionalEncoding es nn.Module: queda registrado como submódulo
+    # y su dropout se desactiva correctamente en model.eval()
     logger.info(
         "Modelo Transformer construido: lookback=%d, n_features=%d, d_model=%d, nhead=%d, layers=%d, horizon=%d",
         lookback,
@@ -162,10 +170,12 @@ def train_transformer(
     from torch.utils.data import DataLoader, TensorDataset
 
     transformer_cfg = config["transformer"]
-    batch_size = int(transformer_cfg.get("batch_size", 32))
-    max_epochs = int(transformer_cfg.get("max_epochs", 100))
-    patience = int(transformer_cfg.get("patience", 10))
+    batch_size    = int(transformer_cfg.get("batch_size", 32))
+    max_epochs    = int(transformer_cfg.get("max_epochs", 100))
+    patience      = int(transformer_cfg.get("patience", 10))
     learning_rate = float(transformer_cfg.get("learning_rate", 1e-4))
+    loss_name     = transformer_cfg.get("loss", "mse").lower()
+    huber_delta   = float(transformer_cfg.get("huber_delta", 0.5))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     _validate_array("X_train", X_train)
@@ -186,7 +196,12 @@ def train_transformer(
     val_loader = DataLoader(val_dataset, batch_size=min(batch_size, len(val_dataset)), shuffle=False)
 
     model = model.to(device)
-    criterion = nn.MSELoss()
+    if loss_name == "huber":
+        criterion = nn.HuberLoss(delta=huber_delta)
+        logger.info("Loss: HuberLoss(delta=%.2f)", huber_delta)
+    else:
+        criterion = nn.MSELoss()
+        logger.info("Loss: MSELoss")
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     best_path = Path(f"results/models/{experiment_name}_best.pt")
@@ -216,6 +231,9 @@ def train_transformer(
             predictions = model(batch_x)
             loss = criterion(predictions, batch_y)
             loss.backward()
+            # Gradient clipping: los Transformers son susceptibles a explosiones
+            # del gradiente, especialmente en las primeras épocas.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
             batch_size_actual = batch_x.size(0)
@@ -261,7 +279,7 @@ def train_transformer(
                 break
 
     if best_path.exists():
-        model.load_state_dict(torch.load(best_path, map_location=device))
+        model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True))
 
     return history
 
