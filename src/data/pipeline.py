@@ -183,7 +183,7 @@ def make_sequences(
 
 def build_tensors(
     config_path: str = "config.yaml",
-    features_path: str = "data/processed/dataset_orinoco_features.csv",
+    features_path: str = "data/processed/joined_legacy_nasa.csv",
     scaler_path: str = "results/models/scaler.joblib",
     cfg_override: dict = None,
 ) -> Dict[str, np.ndarray]:

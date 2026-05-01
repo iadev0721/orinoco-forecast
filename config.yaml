@@ -14,10 +14,10 @@ forecast_horizon: 7          # días a predecir (t+1 a t+7)
 lookback_window: 30          # días de historia como input (ajustar tras EDA PC-01-03)
 
 # --- Partición temporal (CRONOLÓGICA, nunca aleatoria) ---
-# Split: 60% Train / 20% Validation / 20% Test (sobre 11,818 filas, 1992-2025)
-train_end: "2007-06-28"   # fin train  → 7,090 días (60%)
-val_end:   "2016-04-26"   # fin val    → 2,363 días (20%)
-# test: 2016-04-27 → 2025-02-24 → 2,365 días (20%) (implícito)
+# Split: 60% Train / 20% Validation / 20% Test (sobre 16,126 filas, 1981-2025)
+train_end: "2007-06-28"   # fin train  → 9,675 días (60%)
+val_end:   "2016-04-26"   # fin val    → 3,225 días (20%)
+# test: 2016-04-27 → 2025-02-24 → 3,226 días (20%) (implícito)
 
 # --- Rutas de datos ---
 # NOTA: Se recuperó el dataset crudo original (dataset_orinoco_true_raw.csv).

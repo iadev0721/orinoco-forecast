@@ -41,7 +41,7 @@ def main() -> None:
     log_environment_versions()
 
     # Cargar dataset de features
-    features_path = "data/processed/dataset_orinoco_features.csv"
+    features_path = "data/processed/joined_legacy_nasa.csv"
     logger.info("Cargando dataset: %s", features_path)
     df = pd.read_csv(features_path, parse_dates=["fecha"]).set_index("fecha").sort_index()
 

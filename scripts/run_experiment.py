@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 def run_naive(cfg: dict, tracker: ExperimentTracker) -> None:
     """Ejecuta los modelos Naive y los registra como un experimento."""
-    features_path = "data/processed/dataset_orinoco_features.csv"
+    features_path = "data/processed/joined_legacy_nasa.csv"
     df = pd.read_csv(features_path, parse_dates=["fecha"]).set_index("fecha").sort_index()
     _, _, df_test = split_data(df, cfg["train_end"], cfg["val_end"])
 
