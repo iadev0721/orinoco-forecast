@@ -1,0 +1,41 @@
+{
+  "experiment_name": "ensemble_transformer_xl",
+  "model_type": "transformer_ensemble_n5",
+  "timestamp": "2026-04-30T21:47:15.301755",
+  "metrics": {
+    "test": {
+      "mae": 0.1402391493320465,
+      "rmse": 0.2062918245792389,
+      "nse": 0.9955655336380005,
+      "kge": 0.9930225516650211,
+      "kge_r": 0.9978348687360794,
+      "kge_alpha": 1.0028992891311646,
+      "kge_beta": 1.0059658288955688
+    },
+    "val": {
+      "mae": 0.1555323600769043,
+      "rmse": 0.2248000055551529,
+      "nse": 0.9953457713127136,
+      "kge": 0.9949567606308937,
+      "kge_r": 0.9976738242530678,
+      "kge_alpha": 0.9956302642822266,
+      "kge_beta": 0.9990363717079163
+    }
+  },
+  "n_members": 5,
+  "seeds": [
+    42,
+    123,
+    456,
+    789,
+    1011
+  ],
+  "use_residual": true,
+  "arch": {
+    "d_model": 128,
+    "nhead": 4,
+    "num_layers": 3,
+    "dim_feedforward": 256,
+    "lookback": 150
+  }
+}

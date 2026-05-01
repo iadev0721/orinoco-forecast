@@ -211,38 +211,45 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
 
 
 def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
-    """Entrena el Transformer y registra el experimento."""
+    """Entrena el Transformer y registra el experimento.
+
+    Soporta el paradigma residual (use_residual: true en config.yaml):
+        - El modelo aprende a predecir Δ = nivel_futuro - nivel_actual
+        - Las predicciones se reconstruyen sumando el anchor (nivel actual)
+        - Esto permite comparación directa y justa contra el LSTM gold standard
+    """
     check_baseline_gate(cfg["results"]["baseline_metrics"])
     configure_pytorch_gpu()
 
     transformer_cfg = cfg.get("transformer", {})
-    features_path = transformer_cfg.get("features_path", "data/processed/joined_legacy_nasa.csv")
+    features_path = transformer_cfg.get("features_path", "data/processed/dataset_orinoco_features.csv")
 
     tensors = build_tensors(features_path=features_path, cfg_override=cfg)
-    X_train = tensors["X_train"]
-    y_train = tensors["y_train"]
-    X_val = tensors["X_val"]
-    y_val = tensors["y_val"]
-    X_test = tensors["X_test"]
-    y_test = tensors["y_test"]
-    scaler_y = tensors["scaler_y"]
+    X_train    = tensors["X_train"]
+    y_train    = tensors["y_train"]
+    X_val      = tensors["X_val"]
+    y_val      = tensors["y_val"]
+    X_test     = tensors["X_test"]
+    y_test     = tensors["y_test"]
+    scaler_y   = tensors["scaler_y"]
     test_dates = tensors["test_dates"]
+    use_residual = tensors["use_residual"]
+    anch_test  = tensors["anch_test"]   # (n,) niveles actuales normalizados — test
+    anch_val   = tensors["anch_val"]    # (n,) niveles actuales normalizados — val
 
     logger.info("Shape tensores -> X_train:%s  y_train:%s", X_train.shape, y_train.shape)
+    if use_residual:
+        logger.info("Paradigma RESIDUAL activo: el modelo predice Δ. Reconstrucción posterior con anchor.")
 
     model = build_transformer_model(cfg, n_features=X_train.shape[2], horizon=cfg["forecast_horizon"])
     history = train_transformer(
-        model,
-        X_train,
-        y_train,
-        X_val,
-        y_val,
-        config=cfg,
-        experiment_name=tracker.name,
+        model, X_train, y_train, X_val, y_val,
+        config=cfg, experiment_name=tracker.name,
     )
     tracker.log_training_history(history)
 
     def inv(arr_2d: np.ndarray) -> np.ndarray:
+        """Invierte la normalización de un array 2D columna a columna."""
         result = np.zeros_like(arr_2d)
         for col in range(arr_2d.shape[1]):
             result[:, col] = scaler_y.inverse_transform(
@@ -250,8 +257,24 @@ def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
             ).ravel()
         return result
 
-    y_pred_real = inv(predict_transformer(model, X_test, batch_size=transformer_cfg.get("batch_size", 32)))
-    y_test_real = inv(y_test)
+    def reconstruct(raw_output: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+        """Convierte la salida del modelo a metros reales.
+
+        - use_residual=True : raw_output = delta_norm → sumar anchor antes de inv_transform
+        - use_residual=False: raw_output = nivel_norm → inv_transform directo
+        """
+        if use_residual:
+            norm_absolute = anchors.reshape(-1, 1) + raw_output  # (n, horizon)
+            return inv(norm_absolute)
+        return inv(raw_output)
+
+    raw_test = predict_transformer(model, X_test, batch_size=transformer_cfg.get("batch_size", 32))
+    raw_val  = predict_transformer(model, X_val,  batch_size=transformer_cfg.get("batch_size", 32))
+
+    y_pred_real     = reconstruct(raw_test, anch_test)
+    y_test_real     = inv(y_test + anch_test.reshape(-1, 1)) if use_residual else inv(y_test)
+    y_val_pred_real = reconstruct(raw_val,  anch_val)
+    y_val_real      = inv(y_val  + anch_val.reshape(-1,  1)) if use_residual else inv(y_val)
 
     y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
     y_pred_real = apply_physical_constraints(y_pred_real, cfg, y_train_max=y_train_max)
@@ -259,8 +282,6 @@ def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
     test_metrics = compute_all_metrics(y_test_real, y_pred_real)
     tracker.log_metrics(test_metrics, split="test")
 
-    y_val_pred_real = inv(predict_transformer(model, X_val, batch_size=transformer_cfg.get("batch_size", 32)))
-    y_val_real = inv(y_val)
     val_metrics = compute_all_metrics(y_val_real, y_val_pred_real)
     tracker.log_metrics(val_metrics, split="val")
 

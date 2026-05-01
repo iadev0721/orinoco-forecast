@@ -55,7 +55,9 @@ def main() -> None:
     # Preparar dispositivo PyTorch
     configure_pytorch_gpu()
 
-    features_path = transformer_cfg.get("features_path", cfg.get("transformer", {}).get("features_path"))
+    features_path = transformer_cfg.get("features_path")
+    if not features_path:
+        raise ValueError("'features_path' no definido en config.yaml bajo la sección transformer.")
     logger.info("Usando features: %s", features_path)
 
     tensors = build_tensors(features_path=features_path, cfg_override=cfg)
@@ -83,8 +85,6 @@ def main() -> None:
 
     y_pred_real = inv(predict_transformer(model, X_test, batch_size=transformer_cfg.get("batch_size", 8)))
     y_test_real = inv(y_test)
-
-    y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
 
     # No aplicar restricciones físicas aquí para mantener test limpio; solo calculamos métricas
     test_metrics = compute_all_metrics(y_test_real, y_pred_real)

@@ -11,13 +11,21 @@
 # El código usa get_predictors() en STATION_TOPOLOGY para excluir aguas abajo automáticamente.
 target_station: "palua"
 forecast_horizon: 7          # días a predecir (t+1 a t+7)
-lookback_window: 30          # días de historia como input (ajustar tras EDA PC-01-03)
+lookback_window: 150         # IGUAL que el LSTM gold standard (ensemble_lb150_lags_xl)
 
 # --- Partición temporal (CRONOLÓGICA, nunca aleatoria) ---
-# Split: 60% Train / 20% Validation / 20% Test (sobre 11,818 filas, 1992-2025)
-train_end: "2007-06-28"   # fin train  → 7,090 días (60%)
-val_end:   "2016-04-26"   # fin val    → 2,363 días (20%)
-# test: 2016-04-27 → 2025-02-24 → 2,365 días (20%) (implícito)
+# SPLIT IDÉNTICO al LSTM gold standard (training/1992-2025 branch)
+# Train: 1981-01-01 -> 2018-12-31 | ~13,879 días
+# Val  : 2019-01-01 -> 2022-06-30 |  ~1,277 días
+# Test : 2022-07-01 -> 2025-02-24 |    ~970 días  ← mismo periodo de comparación
+train_end: "2018-12-31"
+val_end:   "2022-06-30"
+# test implícito: 2022-07-01 → fin del dataset
+
+# --- Arquitectura residual ---
+# El LSTM aprende a predecir DELTA = nivel_futuro - nivel_actual.
+# Para comparación justa, el Transformer usa el mismo paradigma.
+use_residual: true
 
 # --- Rutas de datos ---
 # NOTA: Se recuperó el dataset crudo original (dataset_orinoco_true_raw.csv).
@@ -105,7 +113,7 @@ transformer:
   max_epochs: 100
   patience: 10
   learning_rate: 0.0001
-  features_path: "data/processed/joined_legacy_nasa_cleaned.csv"  # Apunta al CSV limpiado por scripts/clean_target_missing.py
+  features_path: "data/processed/dataset_orinoco_features.csv"  # Dataset gold standard (build_features.py)
 
 # --- Reproducibilidad ---
 seed: 42

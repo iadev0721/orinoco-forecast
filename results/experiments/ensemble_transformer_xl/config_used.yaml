@@ -46,14 +46,14 @@ lstm:
   patience: 15
   validation_split: 0.0
 transformer:
-  d_model: 64
+  d_model: 128
   nhead: 4
-  num_layers: 2
-  dim_feedforward: 128
+  num_layers: 3
+  dim_feedforward: 256
   dropout: 0.1
-  batch_size: 8
-  max_epochs: 2
-  patience: 10
+  batch_size: 32
+  max_epochs: 100
+  patience: 15
   learning_rate: 0.0001
   features_path: data/processed/dataset_orinoco_features.csv
 seed: 42

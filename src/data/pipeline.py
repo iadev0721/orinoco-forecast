@@ -147,15 +147,24 @@ def make_sequences(
     data_y: np.ndarray,
     lookback: int,
     horizon: int,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Genera secuencias 3D para LSTM con target multi-step.
+    use_residual: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Genera secuencias 3D para LSTM/Transformer con target multi-step.
 
-    Formato de entrada LSTM: (samples, timesteps, features)
-    Formato del target: (samples, horizon) → predice los próximos 'horizon' días
+    Formato de entrada: (samples, timesteps, features)
+    Formato del target: (samples, horizon)
 
     La ventana se construye así para cada muestra i:
-        X[i] = data_X[i : i+lookback]           → historia de 'lookback' días
-        y[i] = data_y[i+lookback : i+lookback+horizon] → próximos 'horizon' días
+        X[i]      = data_X[i : i+lookback]                 → historia de 'lookback' días
+        anchor[i] = data_y[i+lookback-1]                   → nivel actual (normalizado)
+        y[i]      = data_y[i+lookback : i+lookback+horizon] → niveles futuros absolutos
+              |—use_residual=True—> y[i] = y_absoluto - anchor[i]  (predice delta)
+
+    PARADIGMA RESIDUAL (use_residual=True):
+        El modelo aprende a predecir Δ = nivel_futuro - nivel_actual.
+        Esto fuerza al modelo a competir directamente contra la predicción
+        naïve (Δ=0), que equivale a "mañana será igual a hoy".
+        Reconstrucción: nivel_pred = anchor + delta_pred (en espacio normalizado).
 
     NOTA ANTI-LEAKAGE: data_X y data_y deben venir YA escalados.
 
@@ -164,21 +173,27 @@ def make_sequences(
         data_y: Array 1D escalado del target. Shape: (n,).
         lookback: Días de historia como input.
         horizon: Días a predecir.
+        use_residual: Si True, el target son deltas en lugar de niveles absolutos.
 
     Returns:
-        Tupla (X, y):
-            X shape: (samples, lookback, n_features)
-            y shape: (samples, horizon)
+        Tupla (X, y, anchors):
+            X shape:       (samples, lookback, n_features)
+            y shape:       (samples, horizon) — absoluto o delta según use_residual
+            anchors shape: (samples,)         — nivel actual normalizado por muestra
     """
-    X, y = [], []
+    X, y, anchors = [], [], []
     max_i = len(data_X) - lookback - horizon + 1
     for i in range(max_i):
         X.append(data_X[i: i + lookback])
-        y.append(data_y[i + lookback: i + lookback + horizon])
-    X_arr = np.array(X, dtype=np.float32)
-    y_arr = np.array(y, dtype=np.float32)
-    logger.debug("Sequences: X=%s, y=%s", X_arr.shape, y_arr.shape)
-    return X_arr, y_arr
+        anchor = data_y[i + lookback - 1]   # nivel actual (normalizado)
+        future = data_y[i + lookback: i + lookback + horizon]
+        y.append(future - anchor if use_residual else future)
+        anchors.append(anchor)
+    X_arr       = np.array(X,       dtype=np.float32)
+    y_arr       = np.array(y,       dtype=np.float32)
+    anchors_arr = np.array(anchors, dtype=np.float32)
+    logger.debug("Sequences: X=%s, y=%s, anchors=%s", X_arr.shape, y_arr.shape, anchors_arr.shape)
+    return X_arr, y_arr, anchors_arr
 
 
 def build_tensors(
@@ -215,6 +230,10 @@ def build_tensors(
     horizon: int        = cfg["forecast_horizon"]
     train_end: str      = cfg["train_end"]
     val_end: str        = cfg["val_end"]
+    use_residual: bool  = bool(cfg.get("use_residual", False))
+
+    if use_residual:
+        logger.info("Modo RESIDUAL activado: el target son deltas (Δ = futuro - actual).")
 
     # 1. Cargar dataset
     logger.info("Cargando dataset de features: %s", features_path)
@@ -240,10 +259,10 @@ def build_tensors(
     X_va_s, y_va_s = scale_partition(df_val)
     X_te_s, y_te_s = scale_partition(df_test)
 
-    # 5. Generar ventanas 3D
-    X_train, y_train = make_sequences(X_tr_s, y_tr_s, lookback, horizon)
-    X_val,   y_val   = make_sequences(X_va_s, y_va_s, lookback, horizon)
-    X_test,  y_test  = make_sequences(X_te_s, y_te_s, lookback, horizon)
+    # 5. Generar ventanas 3D (con soporte para paradigma residual)
+    X_train, y_train, anch_train = make_sequences(X_tr_s, y_tr_s, lookback, horizon, use_residual)
+    X_val,   y_val,   anch_val   = make_sequences(X_va_s, y_va_s, lookback, horizon, use_residual)
+    X_test,  y_test,  anch_test  = make_sequences(X_te_s, y_te_s, lookback, horizon, use_residual)
 
     logger.info("Tensores generados:")
     logger.info("  X_train: %s  y_train: %s", X_train.shape, y_train.shape)
@@ -257,6 +276,10 @@ def build_tensors(
         "X_train": X_train,   "y_train": y_train,
         "X_val":   X_val,     "y_val":   y_val,
         "X_test":  X_test,    "y_test":  y_test,
+        "anch_train": anch_train,
+        "anch_val":   anch_val,
+        "anch_test":  anch_test,
+        "use_residual": use_residual,
         "feature_cols": feature_cols,
         "target_col":   target_col,
         "scaler_X":     scaler_X,
