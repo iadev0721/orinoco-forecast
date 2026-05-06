@@ -11,10 +11,10 @@
 # El código usa get_predictors() en STATION_TOPOLOGY para excluir aguas abajo automáticamente.
 target_station: "palua"
 forecast_horizon: 7          # días a predecir (t+1 a t+7)
-lookback_window: 30          # días de historia como input (ajustar tras EDA PC-01-03)
+lookback_window: 150         # IGUAL que el LSTM gold standard (ensemble_lb150_lags_xl)
 
 # --- Partición temporal (CRONOLÓGICA, nunca aleatoria) ---
-# SPLIT CORREGIDO (2026-04-29)
+# SPLIT CORREGIDO (2026-04-29) - IDÉNTICO al LSTM gold standard
 # Train: 1981-01-01 -> 2018-12-31 | 13,879 dias (86.1%)
 #   Cubre 38 anios, incluye El Nino 1982/83, 1997/98, 2015/16, pico 2018 (12.47m)
 # Val  : 2019-01-01 -> 2022-06-30 |  1,277 dias  (7.9%)
@@ -26,12 +26,13 @@ val_end:   "2022-06-30"
 # test implicito: 2022-07-01 -> fin del dataset
 
 # --- Arquitectura residual ---
-# El LSTM aprende a predecir DELTA = nivel_futuro - nivel_actual
+# El LSTM y el Transformer aprenden a predecir DELTA = nivel_futuro - nivel_actual
 # en lugar del nivel absoluto. Ventajas:
 #   1. Fuerza al modelo a competir directamente con el Naive (que predice delta=0)
 #   2. Ancla cada prediccion al nivel conocido hoy (fisica correcta)
 #   3. El target es casi estacionario -> mas facil de aprender
 # La reconstruccion final: nivel_pred = nivel_hoy + delta_pred
+# Para comparación justa, ambos usan el mismo paradigma.
 use_residual: true
 
 # --- Rutas de datos ---
@@ -123,6 +124,7 @@ transformer:
   max_epochs: 100
   patience: 10
   learning_rate: 0.0001
+  features_path: "data/processed/dataset_orinoco_features.csv"  # Dataset gold standard (build_features.py)
 
 # --- Reproducibilidad ---
 seed: 42
