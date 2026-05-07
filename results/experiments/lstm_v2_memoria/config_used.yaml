@@ -1,0 +1,68 @@
+target_station: palua
+forecast_horizon: 7
+lookback_window: 90
+train_end: '2007-06-28'
+val_end: '2016-04-26'
+data:
+  raw: data/raw/dataset_orinoco_true_raw.csv
+  audited: data/processed/dataset_audited.parquet
+  final: data/processed/dataset_final.parquet
+  enso: data/external/enso_oni_index.csv
+  chirps: data/external/chirps_precipitation.nc
+results:
+  models_dir: results/models/
+  metrics_dir: results/metrics/
+  figures_dir: results/figures/
+  baseline_metrics: results/metrics/baseline_metrics.json
+stations:
+  ayacucho:
+    km_relative: 0
+    order: 0
+    role: upstream_far
+    lag_to_target_days: 12
+  caicara:
+    km_relative: 339
+    order: 1
+    role: upstream_mid
+    lag_to_target_days: 4
+  ciudad_bolivar:
+    km_relative: 698
+    order: 2
+    role: upstream_near
+    lag_to_target_days: 0
+  palua:
+    km_relative: 791
+    order: 3
+    role: configurable_target
+lstm:
+  units:
+  - 128
+  - 64
+  dropout: 0.2
+  learning_rate: 0.001
+  batch_size: 64
+  max_epochs: 200
+  patience: 15
+  validation_split: 0.0
+transformer:
+  d_model: 64
+  nhead: 4
+  num_layers: 2
+  dim_feedforward: 128
+  dropout: 0.1
+  batch_size: 32
+  max_epochs: 100
+  patience: 10
+  learning_rate: 0.0001
+seed: 42
+gpu:
+  memory_growth: true
+thresholds:
+  nse_acceptable: 0.8
+  nse_good: 0.9
+  kge_acceptable: 0.75
+  peak_timing_error_days: 3
+physical:
+  min_level_m: 0.0
+  max_level_multiplier: 1.15
+  max_daily_change_m: 1.5
