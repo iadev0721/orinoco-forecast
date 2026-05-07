@@ -15,7 +15,7 @@ REGLA R7: Parámetros leídos de config.yaml.
 """
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
@@ -228,7 +228,40 @@ def build_tensors(
     # 3. Split cronológico
     df_train, df_val, df_test = split_data(df, train_end, val_end)
 
-    # 4. Escalar (fit SOLO en train)
+    # 4. [Opcional] Transformar target a Δ nivel ANTES de escalar
+    use_diff: bool = cfg.get("use_diff", False)
+    val_anchor:  Optional[float] = None
+    test_anchor: Optional[float] = None
+    val_levels_orig:  Optional[np.ndarray] = None  # niveles reales pre-transformación
+    test_levels_orig: Optional[np.ndarray] = None
+
+    if use_diff:
+        train_levels = df_train[target_col].values
+        val_levels   = df_val[target_col].values
+        test_levels  = df_test[target_col].values
+
+        # Guardar originales ANTES de transformar (anclas locales exactas sin error acumulativo)
+        val_levels_orig  = val_levels.copy()
+        test_levels_orig = test_levels.copy()
+
+        # Calcular deltas: Δ[t] = nivel[t] - nivel[t-1]
+        train_delta = np.diff(train_levels)           # pierde primera fila
+        val_anchor  = float(df_train[target_col].iloc[-1])
+        val_delta   = np.concatenate([[0.0], np.diff(val_levels)])   # conserva longitud
+        test_anchor = float(df_val[target_col].iloc[-1])
+        test_delta  = np.concatenate([[0.0], np.diff(test_levels)])  # conserva longitud
+
+        df_train = df_train.iloc[1:].copy()
+        df_train[target_col] = train_delta
+        df_val  = df_val.copy();  df_val[target_col]  = val_delta
+        df_test = df_test.copy(); df_test[target_col] = test_delta
+
+        logger.info(
+            "Modo Δ activo: train μ=%.4f σ=%.4f | val μ=%.4f | test μ=%.4f",
+            train_delta.mean(), train_delta.std(), val_delta.mean(), test_delta.mean(),
+        )
+
+    # 5. Escalar (fit SOLO en train, ya en espacio Δ si use_diff)
     scaler_X, scaler_y = fit_scaler(df_train, feature_cols, target_col, scaler_path)
 
     def scale_partition(df_part: pd.DataFrame):
@@ -253,6 +286,28 @@ def build_tensors(
     # Índices de fechas del test (desplazados por lookback+horizon-1 para alinear con y)
     test_dates = df_test.index[lookback + horizon - 1: lookback + horizon - 1 + len(y_test)]
 
+    # Anclas locales por ventana: nivel real (en metros) del ÚLTIMO día conocido
+    # de cada ventana de entrada. Se usan para reconstruir niveles desde Δ.
+    # Fórmula: ancla[i] = nivel_real[i + lookback - 1]
+    test_anchors_local: Optional[np.ndarray] = None
+    val_anchors_local:  Optional[np.ndarray] = None
+
+    if use_diff and test_levels_orig is not None:
+        n_test = len(X_test)
+        n_val  = len(X_val)
+        test_anchors_local = np.array(
+            [float(test_levels_orig[i + lookback - 1]) for i in range(n_test)],
+            dtype=np.float32,
+        )
+        val_anchors_local = np.array(
+            [float(val_levels_orig[i + lookback - 1]) for i in range(n_val)],
+            dtype=np.float32,
+        )
+        logger.info(
+            "Anclas locales — test μ=%.3f m | val μ=%.3f m",
+            test_anchors_local.mean(), val_anchors_local.mean(),
+        )
+
     return {
         "X_train": X_train,   "y_train": y_train,
         "X_val":   X_val,     "y_val":   y_val,
@@ -262,6 +317,11 @@ def build_tensors(
         "scaler_X":     scaler_X,
         "scaler_y":     scaler_y,
         "test_dates":   test_dates,
+        "use_diff":     use_diff,
+        "val_anchor":   val_anchor,
+        "test_anchor":  test_anchor,
+        "test_anchors_local": test_anchors_local,  # (n_test,) ancla real por ventana
+        "val_anchors_local":  val_anchors_local,   # (n_val,)  ancla real por ventana
         # Series originales sin escalar (para baseline y métricas inversas)
         "y_test_raw":   df_test[target_col].values,
         "df_test":      df_test,

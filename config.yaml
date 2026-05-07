@@ -109,6 +109,11 @@ transformer:
 # --- Reproducibilidad ---
 seed: 42
 
+# --- Modo diferencias (anti-Shadow Effect) ---
+# use_diff: true  → target se convierte a Δ nivel diario antes de escalar.
+# Obliga al modelo a predecir *cambios*, no *estados*, eliminando el atajo lag-1.
+use_diff: true
+
 # --- Hardware ---
 gpu:
   memory_growth: true        # tf.config.experimental.set_memory_growth

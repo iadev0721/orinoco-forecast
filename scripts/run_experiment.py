@@ -132,6 +132,9 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
     y_test     = tensors["y_test"]
     scaler_y   = tensors["scaler_y"]
     test_dates = tensors["test_dates"]
+    use_diff   = tensors.get("use_diff", False)
+    test_anchors_local = tensors.get("test_anchors_local", None)  # (n_test,)
+    val_anchors_local  = tensors.get("val_anchors_local",  None)  # (n_val,)
 
     logger.info("Shape tensores -> X_train:%s  y_train:%s", X_train.shape, y_train.shape)
 
@@ -146,29 +149,48 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
     )
     tracker.log_training_history(history)
 
-    # Invertir escala de predicciones a metros reales
-    def inv(arr_2d: np.ndarray) -> np.ndarray:
+    # Invertir escala (y reconstruir niveles absolutos si use_diff)
+    def inv(arr_2d: np.ndarray, anchors_local: np.ndarray = None) -> np.ndarray:
+        """Desnormaliza arr_2d. En modo use_diff reconstruye nivel = ancla + cumsum(deltas).
+
+        anchors_local: array (n_samples,) con el nivel real absoluto delúltimo timestep
+        conocido de cada ventana. Evita acumulación de errores fila a fila.
+        """
         result = np.zeros_like(arr_2d)
         for col in range(arr_2d.shape[1]):
             result[:, col] = scaler_y.inverse_transform(
                 arr_2d[:, col].reshape(-1, 1)
             ).ravel()
+        if use_diff and anchors_local is not None:
+            reconstructed = np.zeros_like(result)
+            for i in range(len(result)):
+                # nivel[t+1..t+H] = ancla + cumsum(Δ[t+1..t+H])
+                reconstructed[i] = anchors_local[i] + np.cumsum(result[i])
+            return reconstructed
         return result
 
-    y_pred_real = inv(model.predict(X_test, verbose=0))
-    y_test_real = inv(y_test)
+    if use_diff:
+        logger.info("Modo Δ: reconstruyendo niveles absolutos con anclas locales.")
 
-    # R4: Restricciones fisicas sobre predicciones
-    y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])  # max en escala original
-    y_pred_real = apply_physical_constraints(y_pred_real, cfg, y_train_max=y_train_max)
+    y_pred_real = inv(model.predict(X_test, verbose=0), anchors_local=test_anchors_local)
+    y_test_real = inv(y_test,                           anchors_local=test_anchors_local)
+
+    # R4: Restricciones físicas
+    # En modo use_diff el scaler_y fue ajustado sobre deltas, NO sobre niveles;
+    # su máximo (~0.6 m) no es el techo real del río. Solo aplicamos R4 en modo nivel.
+    if not use_diff:
+        y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
+        y_pred_real = apply_physical_constraints(y_pred_real, cfg, y_train_max=y_train_max)
+    else:
+        y_pred_real = np.maximum(y_pred_real, 0.0)  # mínimo físico: nivel >= 0
 
     # Metricas test (usa metrics.compute_all_metrics)
     test_metrics = compute_all_metrics(y_test_real, y_pred_real)
     tracker.log_metrics(test_metrics, split="test")
 
-    # Metricas validacion
-    y_val_pred_real = inv(model.predict(X_val, verbose=0))
-    y_val_real      = inv(y_val)
+    # Métricas validación
+    y_val_pred_real = inv(model.predict(X_val, verbose=0), anchors_local=val_anchors_local)
+    y_val_real      = inv(y_val,                           anchors_local=val_anchors_local)
     val_metrics = compute_all_metrics(y_val_real, y_val_pred_real)
     tracker.log_metrics(val_metrics, split="val")
 
