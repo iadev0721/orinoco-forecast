@@ -48,11 +48,8 @@ from src.models.lstm_model import (
     train_lstm,
 )
 from src.models.naive_baseline import run_baselines, SeasonalNaive
-from src.models.transformer_model import (
-    build_transformer_model,
-    predict_transformer,
-    train_transformer,
-)
+# Transformer imports are lazy (inside run_transformer) to avoid
+# requiring torch when only running LSTM experiments.
 from src.utils.gpu_config import configure_pytorch_gpu
 from src.utils.gpu_config import configure_tensorflow_gpu
 from src.utils.reproducibility import log_environment_versions, set_global_seeds
@@ -296,11 +293,18 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
 def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
     """Entrena el Transformer y registra el experimento.
 
+    Las importaciones de PyTorch/Transformer son lazy para no romper
+    entornos donde solo está instalado TensorFlow (LSTM).
     Soporta el paradigma residual (use_residual: true en config.yaml):
         - El modelo aprende a predecir Δ = nivel_futuro - nivel_actual
         - Las predicciones se reconstruyen sumando el anchor (nivel actual)
         - Esto permite comparación directa y justa contra el LSTM gold standard
     """
+    from src.models.transformer_model import (  # noqa: PLC0415
+        build_transformer_model,
+        predict_transformer,
+        train_transformer,
+    )
     check_baseline_gate(cfg["results"]["baseline_metrics"])
     configure_pytorch_gpu()
 

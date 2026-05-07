@@ -21,7 +21,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.data.pipeline import build_tensors, load_config, split_data
+from src.data.pipeline import build_tensors, load_config
 from src.evaluation.experiment_tracker import ExperimentTracker
 from src.evaluation.metrics import compute_all_metrics
 from src.models.lstm_model import (
@@ -80,37 +80,17 @@ def main() -> None:
     y_test     = tensors["y_test"]
     scaler_y   = tensors["scaler_y"]
     test_dates = tensors["test_dates"]
+    anch_test  = tensors["anch_test"]   # nivel base normalizado (para reconstrucción residual)
+    anch_val   = tensors["anch_val"]
 
-    # --- Modo residual: transformar targets a deltas ---
+    # --- Targets para entrenamiento ---
+    # build_tensors ya aplica el residual en make_sequences cuando use_residual=True
+    # (delta = futuro - actual, en espacio normalizado).
+    # NO se vuelve a aplicar aquí para evitar doble sustracción (bug corregido 2026-05-06).
+    y_train_delta = y_train
+    y_val_delta   = y_val
     if use_residual:
-        logger.info("MODO RESIDUAL ACTIVO")
-        df_full    = pd.read_csv(features_path, parse_dates=["fecha"]).set_index("fecha").sort_index()
-        target_col = cfg["target_station"]
-        lookback   = cfg["lookback_window"]
-        horizon    = cfg["forecast_horizon"]
-
-        df_tr, df_va, df_te = split_data(df_full, cfg["train_end"], cfg["val_end"])
-
-        y_raw_tr = scaler_y.transform(df_tr[[target_col]]).ravel()
-        y_raw_va = scaler_y.transform(df_va[[target_col]]).ravel()
-        y_raw_te = scaler_y.transform(df_te[[target_col]]).ravel()
-
-        def get_base_levels(y_raw, n_samples):
-            return np.array([y_raw[i + lookback - 1] for i in range(n_samples)], dtype=np.float32)
-
-        base_train = get_base_levels(y_raw_tr, len(y_train))
-        base_val   = get_base_levels(y_raw_va, len(y_val))
-        base_test  = get_base_levels(y_raw_te, len(y_test))
-
-        y_train_orig = y_train.copy()
-        y_val_orig   = y_val.copy()
-        y_test_orig  = y_test.copy()
-
-        y_train_delta = y_train - base_train[:, np.newaxis]
-        y_val_delta   = y_val   - base_val[:, np.newaxis]
-    else:
-        y_train_delta = y_train
-        y_val_delta   = y_val
+        logger.info("MODO RESIDUAL ACTIVO: build_tensors ya entrega deltas.")
 
     def inv(arr_2d):
         result = np.zeros_like(arr_2d)
@@ -140,18 +120,17 @@ def main() -> None:
         if use_residual:
             delta_test = model.predict(X_test, verbose=0)
             delta_val  = model.predict(X_val,  verbose=0)
-            pred_test_scaled = base_test[:, np.newaxis] + delta_test
-            pred_val_scaled  = base_val[:, np.newaxis]  + delta_val
-            pred_test_real = inv(pred_test_scaled)
-            pred_val_real  = inv(pred_val_scaled)
+            pred_test_real = inv(anch_test[:, np.newaxis] + delta_test)
+            pred_val_real  = inv(anch_val[:, np.newaxis]  + delta_val)
         else:
             pred_test_real = inv(model.predict(X_test, verbose=0))
             pred_val_real  = inv(model.predict(X_val,  verbose=0))
 
         all_preds_test.append(pred_test_real)
         all_preds_val.append(pred_val_real)
+        _y_true_log = inv(y_test + anch_test[:, np.newaxis]) if use_residual else inv(y_test)
         logger.info("Miembro %d: MAE_test=%.3fm", i + 1,
-                    np.abs(pred_test_real - inv(y_test_orig if use_residual else y_test)).mean())
+                    np.abs(pred_test_real - _y_true_log).mean())
 
     # --- Promediar predicciones del ensemble ---
     logger.info("=" * 60)
@@ -160,8 +139,8 @@ def main() -> None:
     y_pred_ensemble_test = np.mean(all_preds_test, axis=0)  # (n_test, horizon)
     y_pred_ensemble_val  = np.mean(all_preds_val,  axis=0)
 
-    y_test_real = inv(y_test_orig if use_residual else y_test)
-    y_val_real  = inv(y_val_orig  if use_residual else y_val)
+    y_test_real = inv(y_test + anch_test[:, np.newaxis]) if use_residual else inv(y_test)
+    y_val_real  = inv(y_val  + anch_val[:, np.newaxis])  if use_residual else inv(y_val)
 
     # Restricciones fisicas
     y_train_max = float(scaler_y.inverse_transform([[1.0]])[0, 0])
