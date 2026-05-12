@@ -58,4 +58,3 @@ nbformat>=5.0.0
 pyyaml>=6.0           # Leer config.yaml
 tqdm>=4.65.0          # Progress bars
 python-dotenv>=1.0.0  # Variables de entorno
-gdown>=4.7.0          # Descarga de datasets desde Google Drive
