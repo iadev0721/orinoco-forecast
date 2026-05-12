@@ -258,7 +258,7 @@ def main() -> None:
         test_metrics=test_metrics,
         all_histories=all_histories,
         seeds=seeds,
-        model_label=f"LSTM Ensemble ({args.n} miembros)",
+        model_label="LSTM" if args.n == 1 else f"LSTM Ensemble ({args.n} miembros)",
     )
 
     logger.info("=" * 60)
