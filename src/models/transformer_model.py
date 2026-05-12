@@ -26,6 +26,7 @@ from typing import Dict, List
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -218,12 +219,20 @@ def train_transformer(
         learning_rate,
     )
 
+    n_batches = len(train_loader)
     for epoch in range(max_epochs):
         model.train()
         running_loss = 0.0
         seen_samples = 0
 
-        for batch_x, batch_y in train_loader:
+        pbar = tqdm(
+            train_loader,
+            desc=f"Epoch {epoch+1:>3}/{max_epochs}",
+            unit="batch",
+            leave=False,
+            ncols=100,
+        )
+        for batch_x, batch_y in pbar:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
 
@@ -239,6 +248,7 @@ def train_transformer(
             batch_size_actual = batch_x.size(0)
             running_loss += float(loss.item()) * batch_size_actual
             seen_samples += batch_size_actual
+            pbar.set_postfix(loss=f"{running_loss/max(seen_samples,1):.6f}")
 
         train_loss = running_loss / max(seen_samples, 1)
 
@@ -260,12 +270,9 @@ def train_transformer(
         history["loss"].append(train_loss)
         history["val_loss"].append(val_loss)
 
-        logger.info(
-            "Epoca %d/%d | loss=%.6f | val_loss=%.6f",
-            epoch + 1,
-            max_epochs,
-            train_loss,
-            val_loss,
+        tqdm.write(
+            f"Epoch {epoch+1:>3}/{max_epochs} "
+            f"━━ loss: {train_loss:.6f} — val_loss: {val_loss:.6f}"
         )
 
         if val_loss < best_val_loss:
@@ -275,7 +282,7 @@ def train_transformer(
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                logger.info("Early stopping activado en la epoca %d.", epoch + 1)
+                tqdm.write(f"Early stopping activado en la epoca {epoch+1}.")
                 break
 
     if best_path.exists():
