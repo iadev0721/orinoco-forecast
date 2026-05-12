@@ -23,6 +23,9 @@ import logging
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")   # sin display (compatible con Colab y headless)
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -281,6 +284,20 @@ def run_ensemble(cfg: dict, args: argparse.Namespace) -> None:
     with open(metrics_path, "w") as f:
         json.dump(meta, f, indent=2)
 
+    # ──────────────────────────────────────────────────────────────
+    # Gráficos: predicciones y learning curve
+    # ──────────────────────────────────────────────────────────────
+    _save_plots(
+        exp_dir=Path(exp_dir),
+        test_dates=test_dates,
+        y_true=y_test_real,
+        y_pred=y_pred_ensemble_test_bc,
+        test_metrics=test_metrics_bc,
+        all_histories=[{"val_loss": [], "loss": []}],  # placeholder; ver nota
+        seeds=seeds,
+        model_label=f"Transformer Ensemble ({args.n} miembros)",
+    )
+
     logger.info("=" * 60)
     logger.info(
         "Ensemble '%s' completado -> %s", args.name, exp_dir
@@ -294,6 +311,93 @@ def run_ensemble(cfg: dict, args: argparse.Namespace) -> None:
         test_metrics_bc["mae"]*100, test_metrics_bc["nse"], test_metrics_bc["kge"],
     )
     logger.info("=" * 60)
+
+
+def _save_plots(
+    exp_dir: Path,
+    test_dates,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    test_metrics: dict,
+    all_histories: list,
+    seeds: list,
+    model_label: str = "Ensemble",
+) -> None:
+    """Genera y guarda predicciones.png y learning_curve.png en exp_dir."""
+
+    # ── 1. Predicciones vs observado (horizonte t+7) ──────────
+    y_true_plot = y_true[:, -1]
+    y_pred_plot = y_pred[:, -1]
+    err    = np.abs(y_true_plot - y_pred_plot)
+    mae_cm = test_metrics["mae"] * 100
+
+    fig, axes = plt.subplots(2, 1, figsize=(16, 10))
+
+    ax = axes[0]
+    ax.plot(test_dates, y_true_plot, color="#2196F3", lw=1.5,
+            label="Observado (Palúa)", alpha=0.9)
+    ax.plot(test_dates, y_pred_plot, color="#FF9800", lw=1.5,
+            label=f"{model_label} t+7 (MAE={mae_cm:.1f} cm)", alpha=0.85)
+    ax.fill_between(test_dates,
+                    y_pred_plot - test_metrics["mae"],
+                    y_pred_plot + test_metrics["mae"],
+                    alpha=0.15, color="#FF9800", label="±1 MAE")
+    ax.set_title(f"Predicciones {model_label} vs Observado — Test Set",
+                 fontsize=13, fontweight="bold")
+    ax.set_ylabel("Nivel del río Palúa (m)")
+    ax.legend(fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.set_ylim(bottom=0)
+
+    ax2 = axes[1]
+    ax2.fill_between(test_dates, err, alpha=0.5, color="#9C27B0")
+    ax2.axhline(test_metrics["mae"], color="purple", linestyle="--",
+                linewidth=1.5, label=f"MAE={mae_cm:.1f} cm")
+    ax2.set_title("Error Absoluto Diario (t+7)", fontsize=12, fontweight="bold")
+    ax2.set_ylabel("|Error| (m)")
+    ax2.set_xlabel("Fecha")
+    ax2.legend(fontsize=10)
+    ax2.grid(alpha=0.3)
+
+    plt.tight_layout()
+    pred_png = exp_dir / "predicciones.png"
+    plt.savefig(pred_png, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Gráfico guardado: %s", pred_png)
+
+    # ── 2. Learning curve (solo si hay historial disponible) ────
+    valid_histories = [h for h in all_histories if h.get("val_loss")]
+    if not valid_histories:
+        logger.warning("Sin historial de entrenamiento disponible para learning curve.")
+        return
+
+    fig2, ax3 = plt.subplots(figsize=(12, 5))
+    for hist, seed in zip(valid_histories, seeds):
+        ep = range(1, len(hist["val_loss"]) + 1)
+        ax3.plot(ep, hist["val_loss"], lw=1, alpha=0.5, label=f"seed={seed}")
+
+    min_len   = min(len(h["val_loss"]) for h in valid_histories)
+    avg_val   = np.mean([h["val_loss"][:min_len] for h in valid_histories], axis=0)
+    avg_train = np.mean([h["loss"][:min_len]     for h in valid_histories], axis=0)
+    ep_avg    = range(1, min_len + 1)
+    ax3.plot(ep_avg, avg_val,   color="black", lw=2.5, linestyle="--",
+             label="Promedio val_loss")
+    ax3.plot(ep_avg, avg_train, color="gray",  lw=1.5, linestyle=":",
+             label="Promedio train_loss")
+
+    ax3.set_title(f"Curva de Aprendizaje — {model_label}",
+                  fontsize=13, fontweight="bold")
+    ax3.set_xlabel("Época")
+    ax3.set_ylabel("Loss (escala normalizada)")
+    ax3.legend(fontsize=9)
+    ax3.grid(alpha=0.3)
+    ax3.set_yscale("log")
+
+    plt.tight_layout()
+    lc_png = exp_dir / "learning_curve.png"
+    plt.savefig(lc_png, dpi=150, bbox_inches="tight")
+    plt.close(fig2)
+    logger.info("Learning curve guardada: %s", lc_png)
 
 
 def main() -> None:
