@@ -1,6 +1,6 @@
 # 🌊 Orinoco Forecast: Predicción del Nivel del Río Orinoco
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iadev0721/orinoco-forecast/blob/feature/definitive/Orinoco_Forecast_Reproducibility.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iadev0721/orinoco-forecast/blob/main/Orinoco_Forecast_Reproducibility.ipynb)
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![TensorFlow 2.x](https://img.shields.io/badge/TensorFlow-2.x-orange.svg)](https://www.tensorflow.org/)
