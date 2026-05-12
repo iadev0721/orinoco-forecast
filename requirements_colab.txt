@@ -1,0 +1,3 @@
+# Dependencias mínimas para Google Colab
+# numpy, pandas, torch, tensorflow, sklearn, matplotlib, seaborn ya vienen preinstalados
+pyyaml>=6.0
