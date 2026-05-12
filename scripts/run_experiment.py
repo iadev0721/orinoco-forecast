@@ -33,6 +33,9 @@ import logging
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -289,6 +292,19 @@ def run_lstm(cfg: dict, tracker: ExperimentTracker) -> None:
         horizon=cfg["forecast_horizon"],
     )
 
+    # ──────────────────────────────────────────────────────────────
+    # Gráficos
+    # ──────────────────────────────────────────────────────────────
+    _save_plots(
+        exp_dir=Path(tracker.exp_dir),
+        test_dates=test_dates,
+        y_true=y_test_real,
+        y_pred=y_pred_real,
+        test_metrics=test_metrics,
+        history=history,
+        model_label="LSTM",
+    )
+
 
 def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
     """Entrena el Transformer y registra el experimento.
@@ -401,6 +417,79 @@ def run_transformer(cfg: dict, tracker: ExperimentTracker) -> None:
         y_pred_real[:, -1],
         horizon=cfg["forecast_horizon"],
     )
+
+    # ──────────────────────────────────────────────────────────────
+    # Gráficos
+    # ──────────────────────────────────────────────────────────────
+    _save_plots(
+        exp_dir=Path(tracker.exp_dir),
+        test_dates=test_dates,
+        y_true=y_test_real,
+        y_pred=y_pred_real,
+        test_metrics=test_metrics,
+        history=history,
+        model_label="Transformer",
+    )
+
+
+def _save_plots(
+    exp_dir: Path,
+    test_dates,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    test_metrics: dict,
+    history: dict,
+    model_label: str,
+) -> None:
+    """Genera y guarda predicciones.png y learning_curve.png."""
+    # 1. Predicciones
+    y_true_plot = y_true[:, -1]
+    y_pred_plot = y_pred[:, -1]
+    err    = np.abs(y_true_plot - y_pred_plot)
+    mae_cm = test_metrics["mae"] * 100
+
+    fig, axes = plt.subplots(2, 1, figsize=(16, 10))
+    ax = axes[0]
+    ax.plot(test_dates, y_true_plot, color="#2196F3", lw=1.5, label="Observado (Palúa)", alpha=0.9)
+    ax.plot(test_dates, y_pred_plot, color="#4CAF50", lw=1.5, label=f"{model_label} t+7 (MAE={mae_cm:.1f} cm)", alpha=0.85)
+    ax.fill_between(test_dates, y_pred_plot - test_metrics["mae"], y_pred_plot + test_metrics["mae"], alpha=0.15, color="#4CAF50")
+    ax.set_title(f"Predicciones {model_label} vs Observado — Test Set", fontsize=13, fontweight="bold")
+    ax.set_ylabel("Nivel (m)")
+    ax.legend(fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.set_ylim(bottom=0)
+
+    ax2 = axes[1]
+    ax2.fill_between(test_dates, err, alpha=0.5, color="#FF5722")
+    ax2.axhline(test_metrics["mae"], color="red", linestyle="--", linewidth=1.5, label=f"MAE={mae_cm:.1f} cm")
+    ax2.set_title("Error Absoluto Diario (t+7)", fontsize=12, fontweight="bold")
+    ax2.set_ylabel("|Error| (m)")
+    ax2.set_xlabel("Fecha")
+    ax2.legend(fontsize=10)
+    ax2.grid(alpha=0.3)
+
+    plt.tight_layout()
+    pred_png = exp_dir / "predicciones.png"
+    plt.savefig(pred_png, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    # 2. Curva de aprendizaje
+    if not history or "val_loss" not in history: return
+    fig2, ax3 = plt.subplots(figsize=(12, 5))
+    ep = range(1, len(history["val_loss"]) + 1)
+    ax3.plot(ep, history["loss"], label="Train Loss", lw=1.5, linestyle=":")
+    ax3.plot(ep, history["val_loss"], label="Val Loss", lw=2.5, color="black")
+    ax3.set_title(f"Curva de Aprendizaje — {model_label}", fontsize=13, fontweight="bold")
+    ax3.set_xlabel("Época")
+    ax3.set_ylabel("Loss (escala normalizada)")
+    ax3.legend()
+    ax3.grid(alpha=0.3)
+    ax3.set_yscale("log")
+    
+    plt.tight_layout()
+    lc_png = exp_dir / "learning_curve.png"
+    plt.savefig(lc_png, dpi=150, bbox_inches="tight")
+    plt.close(fig2)
 
 
 # ──────────────────────────────────────────────────────────────────
