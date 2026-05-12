@@ -335,7 +335,7 @@ def _save_plots(
     ep_avg    = range(1, min_len + 1)
     ax3.plot(ep_avg, avg_val,   color="black", lw=2.5, linestyle="--",
              label="Promedio val_loss")
-    ax3.plot(ep_avg, avg_train, color="gray",  lw=1.5, linestyle=":.",
+    ax3.plot(ep_avg, avg_train, color="gray",  lw=1.5, linestyle="-.",
              label="Promedio train_loss")
 
     ax3.set_title(f"Curva de Aprendizaje — {model_label}",
