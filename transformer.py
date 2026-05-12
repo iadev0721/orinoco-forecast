@@ -34,8 +34,8 @@ def main():
     shutil.copytree(src_dir, dest_dir)
     
     print("\n" + "=" * 60)
-    print(f"✅ Proceso completado exitosamente.")
-    print(f"📁 Los resultados y gráficos se encuentran en la carpeta raíz: ./{experiment_name}/")
+    print(f"Proceso completado exitosamente.")
+    print(f"Los resultados y gráficos se encuentran en la carpeta raíz: ./{experiment_name}/")
     print("=" * 60)
 
 if __name__ == "__main__":
