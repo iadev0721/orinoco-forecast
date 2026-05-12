@@ -351,13 +351,23 @@ plt.tight_layout()
 plt.savefig(exp_dir / "learning_curve.png", dpi=150, bbox_inches="tight")
 plt.close(fig2)
 
-# ── 10. Copiar a raíz ─────────────────────────────────────────
+# ── 10. Copiar a raíz y generar gráficos por régimen ──────────
 dest_dir = Path(EXPERIMENT_NAME)
 if dest_dir.exists():
     shutil.rmtree(dest_dir)
 shutil.copytree(exp_dir, dest_dir)
 
+print("\nGenerando gráficos por régimen hidrológico...")
+subprocess.run(
+    [sys.executable, "scripts/generate_report_plots.py", 
+     "--csv", str(dest_dir / "predictions_test.csv"), 
+     "--model", "Ensamble Transformer", 
+     "--out", str(dest_dir)],
+    check=True
+)
+
 print(f"\nResultados guardados en: ./{EXPERIMENT_NAME}/")
 print("  predicciones.png, learning_curve.png, predictions_test.csv,")
+print("  scatter_regimes_ensamble_transformer.png, boxplot_regimes_ensamble_transformer.png,")
 print("  metrics.json, config_used.yaml, training_history.json")
 print("\nProceso completado exitosamente.")
