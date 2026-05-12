@@ -336,12 +336,12 @@ def _save_plots(
     ax = axes[0]
     ax.plot(test_dates, y_true_plot, color="#2196F3", lw=1.5,
             label="Observado (Palúa)", alpha=0.9)
-    ax.plot(test_dates, y_pred_plot, color="#FF9800", lw=1.5,
+    ax.plot(test_dates, y_pred_plot, color="#4CAF50", lw=1.5,
             label=f"{model_label} t+7 (MAE={mae_cm:.1f} cm)", alpha=0.85)
     ax.fill_between(test_dates,
                     y_pred_plot - test_metrics["mae"],
                     y_pred_plot + test_metrics["mae"],
-                    alpha=0.15, color="#FF9800", label="±1 MAE")
+                    alpha=0.15, color="#4CAF50", label="\u00b11 MAE")
     ax.set_title(f"Predicciones {model_label} vs Observado — Test Set",
                  fontsize=13, fontweight="bold")
     ax.set_ylabel("Nivel del río Palúa (m)")
@@ -350,8 +350,8 @@ def _save_plots(
     ax.set_ylim(bottom=0)
 
     ax2 = axes[1]
-    ax2.fill_between(test_dates, err, alpha=0.5, color="#9C27B0")
-    ax2.axhline(test_metrics["mae"], color="purple", linestyle="--",
+    ax2.fill_between(test_dates, err, alpha=0.5, color="#FF5722")
+    ax2.axhline(test_metrics["mae"], color="red", linestyle="--",
                 linewidth=1.5, label=f"MAE={mae_cm:.1f} cm")
     ax2.set_title("Error Absoluto Diario (t+7)", fontsize=12, fontweight="bold")
     ax2.set_ylabel("|Error| (m)")
