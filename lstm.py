@@ -10,6 +10,17 @@ from pathlib import Path
 def main():
     experiment_name = "lstm"
     
+    # 0. Asegurar que el baseline exista (Regla R3)
+    baseline_path = Path("results/metrics/baseline_metrics.json")
+    if not baseline_path.exists():
+        print("=" * 60)
+        print("Ejecutando baseline...")
+        print("=" * 60)
+        subprocess.run(
+            [sys.executable, "scripts/run_experiment.py", "--name", "baseline_naive", "--model", "naive"],
+            check=True
+        )
+        
     # 1. Ejecutar el pipeline de entrenamiento
     print("=" * 60)
     print(f"Iniciando entrenamiento del modelo LSTM...")
@@ -17,9 +28,9 @@ def main():
     
     subprocess.run(
         [
-            sys.executable, "scripts/run_ensemble.py",
+            sys.executable, "scripts/run_experiment.py",
             "--name",     experiment_name,
-            "--n",        "5",
+            "--model",    "lstm",
             "--lookback", "150",
             "--units",    "128", "64",
         ],
