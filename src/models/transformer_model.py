@@ -203,7 +203,13 @@ def train_transformer(
     else:
         criterion = nn.MSELoss()
         logger.info("Loss: MSELoss")
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        factor=0.5,
+        patience=max(3, patience // 3),
+        min_lr=1e-6,
+    )
 
     best_path = Path(f"results/models/{experiment_name}_best.pt")
     best_path.parent.mkdir(parents=True, exist_ok=True)
@@ -276,6 +282,8 @@ def train_transformer(
         val_loss = val_running_loss / max(val_seen_samples, 1)
         history["loss"].append(train_loss)
         history["val_loss"].append(val_loss)
+
+        scheduler.step(val_loss)
 
         # Actualizar barra con métricas finales (igual que Keras al cerrar la época)
         pbar.set_postfix_str(
