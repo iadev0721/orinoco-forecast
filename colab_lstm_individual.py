@@ -1,15 +1,14 @@
 # ==============================================================
-# ORINOCO FORECAST — Reproducción del Gold Standard LSTM
-# Modelo: ensemble_lb150_lags_xl (commit 28fdb82)
-# MAE Test: 13.3 cm | NSE: 0.9959 | KGE: 0.9938
+# ORINOCO FORECAST — Entrenamiento LSTM Individual en Colab
+# Modelo individual (seed=42 por defecto de config.yaml)
 #
 # INSTRUCCIONES:
 #   1. Activar GPU: Runtime → Change runtime type → T4 GPU
-#   2. Ejecutar desde la raíz del repositorio clonado
-#   3. Resultados en results/experiments/ensemble_lb150_gold_repro/
+#   2. Clonar el repo y ejecutar desde su raíz
+#   3. Resultados en results/experiments/lstm_individual/
 #
 # Para desactivar oneDNN (mayor reproducibilidad numérica):
-#   TF_ENABLE_ONEDNN_OPTS=0 python colab_gold_standard.py
+#   TF_ENABLE_ONEDNN_OPTS=0 python colab_lstm_individual.py
 # ==============================================================
 
 # ── (Solo en Colab) Clonar repo si no existe ─────────────────
@@ -20,9 +19,9 @@ import subprocess, sys
 
 subprocess.run(
     [
-        sys.executable, "scripts/run_ensemble.py",
-        "--name",     "ensemble_lb150_gold_repro",
-        "--n",        "5",
+        sys.executable, "scripts/run_experiment.py",
+        "--name",     "lstm_individual",
+        "--model",    "lstm",
         "--lookback", "150",
         "--units",    "128", "64",
     ],
