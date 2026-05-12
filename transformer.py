@@ -277,26 +277,21 @@ m_val     = metrics(y_val_real,  y_pred_val)
 
 print(f"\n{'='*58}")
 print("RESULTADOS FINALES")
-print(f"TEST (sin BC) MAE:{m_test['mae']*100:.1f}cm NSE:{m_test['nse']:.4f} KGE:{m_test['kge']:.4f}")
-print(f"TEST (con BC) MAE:{m_test_bc['mae']*100:.1f}cm NSE:{m_test_bc['nse']:.4f} KGE:{m_test_bc['kge']:.4f} <- OFICIAL")
-print(f"VAL           MAE:{m_val['mae']*100:.1f}cm NSE:{m_val['nse']:.4f} KGE:{m_val['kge']:.4f}")
+print(f"TEST  MAE:{m_test_bc['mae']*100:.1f}cm | RMSE:{m_test_bc['rmse']*100:.1f}cm | NSE:{m_test_bc['nse']:.4f} | KGE:{m_test_bc['kge']:.4f}")
+print(f"VAL   MAE:{m_val['mae']*100:.1f}cm | RMSE:{m_val['rmse']*100:.1f}cm | NSE:{m_val['nse']:.4f} | KGE:{m_val['kge']:.4f}")
 print(f"{'='*58}")
 
 # ── 8. Guardar resultados ─────────────────────────────────────
 exp_dir = Path(f"results/experiments/{EXPERIMENT_NAME}")
 exp_dir.mkdir(parents=True, exist_ok=True)
 
-# predicciones.csv
-y_true_plot = y_test_real[:, -1]
-y_pred_plot = y_pred_test_bc[:, -1]
-err         = np.abs(y_true_plot - y_pred_plot)
-
-pd.DataFrame({
-    "fecha":     test_dates,
-    "y_true":    y_true_plot,
-    "y_pred_bc": y_pred_plot,
-    "error_abs": err,
-}).to_csv(exp_dir / "predictions_test.csv", index=False)
+# predictions_test.csv — todos los horizontes con predicciones BC
+_pred_data = {"fecha": test_dates}
+for _h in range(HORIZON):
+    _pred_data[f"y_true_h{_h+1}"] = y_test_real[:, _h]
+for _h in range(HORIZON):
+    _pred_data[f"y_pred_h{_h+1}"] = y_pred_test_bc[:, _h]
+pd.DataFrame(_pred_data).to_csv(exp_dir / "predictions_test.csv", index=False)
 
 # metrics.json
 with open(exp_dir / "metrics.json", "w") as f:
@@ -313,6 +308,10 @@ with open(exp_dir / "training_history.json", "w") as f:
     json.dump(all_histories, f)
 
 # ── 9. Gráficos ───────────────────────────────────────────────
+y_true_plot = y_test_real[:, -1]
+y_pred_plot = y_pred_test_bc[:, -1]
+err         = np.abs(y_true_plot - y_pred_plot)
+
 fig, axes = plt.subplots(2, 1, figsize=(16, 10))
 ax = axes[0]
 ax.plot(test_dates, y_true_plot, color="#2196F3", lw=1.5, label="Observado (Palua)", alpha=0.9)
