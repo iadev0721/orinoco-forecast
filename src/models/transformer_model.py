@@ -225,14 +225,18 @@ def train_transformer(
         running_loss = 0.0
         seen_samples = 0
 
+        print(f"Epoch {epoch + 1}/{max_epochs}", flush=True)
+
         pbar = tqdm(
-            train_loader,
-            desc=f"Epoch {epoch+1:>3}/{max_epochs}",
-            unit="batch",
-            leave=False,
-            ncols=100,
+            total=n_batches,
+            ascii=" \u2501",          # espacio = vacío, ━ = lleno
+            colour="green",
+            bar_format="{n_fmt}/{total_fmt} {bar:20} {elapsed} {rate_inv_fmt} - {postfix}",
+            leave=True,
+            dynamic_ncols=True,
         )
-        for batch_x, batch_y in pbar:
+
+        for batch_x, batch_y in train_loader:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
 
@@ -248,7 +252,10 @@ def train_transformer(
             batch_size_actual = batch_x.size(0)
             running_loss += float(loss.item()) * batch_size_actual
             seen_samples += batch_size_actual
-            pbar.set_postfix(loss=f"{running_loss/max(seen_samples,1):.6f}")
+            pbar.update(1)
+            pbar.set_postfix_str(
+                f"loss: {running_loss / max(seen_samples, 1):.4f}"
+            )
 
         train_loss = running_loss / max(seen_samples, 1)
 
@@ -270,10 +277,12 @@ def train_transformer(
         history["loss"].append(train_loss)
         history["val_loss"].append(val_loss)
 
-        tqdm.write(
-            f"Epoch {epoch+1:>3}/{max_epochs} "
-            f"━━ loss: {train_loss:.6f} — val_loss: {val_loss:.6f}"
+        # Actualizar barra con métricas finales (igual que Keras al cerrar la época)
+        pbar.set_postfix_str(
+            f"loss: {train_loss:.4f} - val_loss: {val_loss:.4f}"
         )
+        pbar.refresh()
+        pbar.close()
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -282,7 +291,7 @@ def train_transformer(
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                tqdm.write(f"Early stopping activado en la epoca {epoch+1}.")
+                print(f"Early stopping activado en la epoca {epoch + 1}.")
                 break
 
     if best_path.exists():
