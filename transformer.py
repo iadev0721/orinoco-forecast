@@ -1,6 +1,5 @@
 # ==============================================================
-# ORINOCO FORECAST — Transformer Ensemble Gold Standard
-# MAE ref: 13.4 cm | RMSE: 19.8 cm | NSE: 0.9959 | KGE: 0.9919
+# ORINOCO FORECAST — Transformer Ensemble
 # ==============================================================
 import json, math, random, shutil, subprocess, sys
 from pathlib import Path
@@ -281,7 +280,6 @@ print("RESULTADOS FINALES")
 print(f"TEST (sin BC) MAE:{m_test['mae']*100:.1f}cm NSE:{m_test['nse']:.4f} KGE:{m_test['kge']:.4f}")
 print(f"TEST (con BC) MAE:{m_test_bc['mae']*100:.1f}cm NSE:{m_test_bc['nse']:.4f} KGE:{m_test_bc['kge']:.4f} <- OFICIAL")
 print(f"VAL           MAE:{m_val['mae']*100:.1f}cm NSE:{m_val['nse']:.4f} KGE:{m_val['kge']:.4f}")
-print(f"Referencia Gold Standard: MAE=13.4cm NSE=0.9959 KGE=0.9919")
 print(f"{'='*58}")
 
 # ── 8. Guardar resultados ─────────────────────────────────────
