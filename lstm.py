@@ -1,7 +1,3 @@
-# ==============================================================
-# ORINOCO FORECAST — LSTM Gold Standard (Ensemble 5 miembros)
-# ==============================================================
-
 import subprocess
 import sys
 import shutil
@@ -28,9 +24,9 @@ def main():
     
     subprocess.run(
         [
-            sys.executable, "scripts/run_experiment.py",
+            sys.executable, "scripts/run_ensemble.py",
             "--name",     experiment_name,
-            "--model",    "lstm",
+            "--n",        "1",          
             "--lookback", "150",
             "--units",    "128", "64",
         ],
