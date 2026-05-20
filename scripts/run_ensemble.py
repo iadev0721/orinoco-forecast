@@ -42,7 +42,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # Seeds para los N miembros del ensemble (diversidad controlada)
-ENSEMBLE_SEEDS = [42, 123, 456, 789, 1011, 2024, 314, 99, 7, 2048]
+ENSEMBLE_SEEDS = [789, 42, 123, 456, 1011, 2024, 314, 99, 7, 2048]
 
 
 def main() -> None:
