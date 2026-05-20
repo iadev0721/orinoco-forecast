@@ -296,6 +296,7 @@ def run_ensemble(cfg: dict, args: argparse.Namespace) -> None:
         all_histories=[{"val_loss": [], "loss": []}],  # placeholder; ver nota
         seeds=seeds,
         model_label=f"Transformer Ensemble ({args.n} miembros)",
+        horizon=cfg["forecast_horizon"],
     )
 
     logger.info("=" * 60)
@@ -322,10 +323,11 @@ def _save_plots(
     all_histories: list,
     seeds: list,
     model_label: str = "Ensemble",
+    horizon: int = 7,
 ) -> None:
     """Genera y guarda predicciones.png y learning_curve.png en exp_dir."""
 
-    # ── 1. Predicciones vs observado (horizonte t+7) ──────────
+    # ── 1. Predicciones vs observado (horizonte t+H) ──────────
     y_true_plot = y_true[:, -1]
     y_pred_plot = y_pred[:, -1]
     err    = np.abs(y_true_plot - y_pred_plot)
@@ -337,7 +339,7 @@ def _save_plots(
     ax.plot(test_dates, y_true_plot, color="#2196F3", lw=1.5,
             label="Observado (Palúa)", alpha=0.9)
     ax.plot(test_dates, y_pred_plot, color="#4CAF50", lw=1.5,
-            label=f"{model_label} t+7 (MAE={mae_cm:.1f} cm)", alpha=0.85)
+            label=f"{model_label} t+{horizon} (MAE={mae_cm:.1f} cm)", alpha=0.85)
     ax.fill_between(test_dates,
                     y_pred_plot - test_metrics["mae"],
                     y_pred_plot + test_metrics["mae"],
@@ -353,7 +355,7 @@ def _save_plots(
     ax2.fill_between(test_dates, err, alpha=0.5, color="#FF5722")
     ax2.axhline(test_metrics["mae"], color="red", linestyle="--",
                 linewidth=1.5, label=f"MAE={mae_cm:.1f} cm")
-    ax2.set_title("Error Absoluto Diario (t+7)", fontsize=12, fontweight="bold")
+    ax2.set_title(f"Error Absoluto Diario (t+{horizon})", fontsize=12, fontweight="bold")
     ax2.set_ylabel("|Error| (m)")
     ax2.set_xlabel("Fecha")
     ax2.legend(fontsize=10)

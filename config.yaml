@@ -10,7 +10,7 @@
 # Opciones válidas: ayacucho | caicara | ciudad_bolivar | palua
 # El código usa get_predictors() en STATION_TOPOLOGY para excluir aguas abajo automáticamente.
 target_station: "palua"
-forecast_horizon: 7          # días a predecir (t+1 a t+7)
+forecast_horizon: 15          # días a predecir (t+1 a t+15)
 lookback_window: 150         # IGUAL que el LSTM gold standard (ensemble_lb150_lags_xl)
 
 # --- Partición temporal (CRONOLÓGICA, nunca aleatoria) ---

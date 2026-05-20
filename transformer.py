@@ -30,7 +30,7 @@ if not baseline_path.exists():
 EXPERIMENT_NAME = "transformer"
 CFG = {
     "target_station":   "palua",
-    "forecast_horizon": 7,
+    "forecast_horizon": 15,
     "lookback_window":  150,
     "train_end":        "2018-12-31",
     "val_end":          "2022-06-30",
