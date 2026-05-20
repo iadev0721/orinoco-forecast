@@ -26,7 +26,7 @@ def main():
         [
             sys.executable, "scripts/run_ensemble.py",
             "--name",     experiment_name,
-            "--n",        "1",          
+            "--n",        "5",          
             "--lookback", "150",
             "--units",    "128", "64",
         ],

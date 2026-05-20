@@ -104,13 +104,13 @@ stations:
 lstm:
   units: [64, 32]
   dropout: 0.2
-  learning_rate: 0.001
+  learning_rate: 0.0005
   batch_size: 64
   max_epochs: 200
-  patience: 15               # EarlyStopping
+  patience: 25               # EarlyStopping
   validation_split: 0.0      # Usar split explicito, no automatico
   loss: "huber"              # 'mse' (default) | 'mae' | 'huber'
-  huber_delta: 0.5           # Errores > 0.5 (escala normalizada, ~50cm) se tratan linealmente
+  huber_delta: 0.8           # Errores > 0.8 (escala normalizada) se tratan linealmente
                              # Atenua la influencia del crash de dic-2022 en el gradiente
 
 # --- Hiperparámetros: Transformer (PyTorch) --- PLUS ACADÉMICO
