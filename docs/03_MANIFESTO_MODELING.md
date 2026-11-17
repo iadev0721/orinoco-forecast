@@ -105,7 +105,7 @@ Comparar:
 
 Reportar: diferencia en NSE y MAE.
 Si la diferencia es < 2%, las estaciones "radar" no aportan
-información adicional. Esto sería un hallazgo importante para la tesis.
+información adicional. Esto sería un hallazgo importante para el proyecto.
 ```
 
 ### PC-03-06: Curvas de Aprendizaje

@@ -47,7 +47,7 @@
 > de 1-4 días. El lag=0 empírico puede deberse a:
 > 1. El Caroní impacta ambas estaciones simultáneamente (driver domínante aguas abajo)
 > 2. La imputación destruyó el lag natural en los tramos imputados
-> **Investigar en EDA PC-01-03 y documentar la conclusión en la tesis.**
+> **Investigar en EDA PC-01-03 y documentar la conclusión en el informe.**
 >
 > ⚠️ **Los lags por tramo (Ayacucho→Caicara, Caicara→CiudadBolívar) son INFERIDOS**, no
 > medidos directamente: el lag total Ayacucho→Palúa (12 días) y Caicara→Palúa (4 días)
@@ -132,7 +132,7 @@ Cd. Bolívar→Palúa        caroni               5.5°N, -62.0°W   Aguas abajo
 
 (*) El Caroní está parcialmente regulado por el Embalse del Guri (Corpoelec).
 Los datos de lluvia capturan la tendencia estacional pero NO las decisiones
-antropógenas de apertura de compuertas. Documentar como limitación en la tesis.
+antropógenas de apertura de compuertas. Documentar como limitación en el informe.
 
 **Variables por radar:** `{nombre}_precipitacion_mm`, `{nombre}_temp_media_c`, `{nombre}_humedad_especifica`
 **Total columnas en el dataset final:** 22 (4 estaciones + 6 radares × 3 variables)
@@ -158,7 +158,7 @@ Palúa puede comportarse de forma distinta al patrón upstream.
 - Los peores errores del modelo probablemente correlacionan con eventos del Caroní.
 - Mitigación parcial: variable `caroni_proxy` definida en `02_MANIFESTO_PREPROCESSING.md`.
 
-**Documentar en la tesis:** Esta limitación debe aparecer explícitamente en la sección
+**Documentar en el informe:** Esta limitación debe aparecer explícitamente en la sección
 "Limitaciones del Modelo". Un jurado respeta más una limitación bien documentada que
 una predicción sospechosamente perfecta.
 

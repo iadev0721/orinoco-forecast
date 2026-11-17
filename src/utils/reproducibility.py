@@ -14,7 +14,7 @@ Seeds fijados:
     - PYTHONHASHSEED (variable de entorno)
 
 Nota: El determinismo completo en GPU requiere configuración adicional
-y puede afectar el rendimiento. Documentar en la tesis.
+y puede afectar el rendimiento. Documentar en el informe.
 """
 import logging
 import os
