@@ -2,7 +2,7 @@
 scripts/compare_experiments.py
 ================================
 Compara todos los experimentos guardados en results/experiments/
-y genera graficas y tablas de evaluacion para la tesis.
+y genera graficas y tablas de evaluacion para el informe del proyecto.
 
 Genera automaticamente:
     results/figures/comparison_metrics.png    -- barras MAE/RMSE/NSE/KGE

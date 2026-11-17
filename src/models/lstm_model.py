@@ -3,7 +3,7 @@ src/models/lstm_model.py
 =========================
 LSTM Multivariado Multi-Step en Keras/TensorFlow.
 
-MODELO CORE de la tesis. Arquitectura definitiva:
+MODELO CORE del proyecto. Arquitectura definitiva:
     Input:   (batch, lookback, n_features)
     LSTM(64, return_sequences=True) -> Dropout(0.2)
     LSTM(32, return_sequences=False) -> Dropout(0.2)

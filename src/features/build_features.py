@@ -61,7 +61,7 @@ def impute_guri_pre1992(df: pd.DataFrame) -> pd.DataFrame:
     )
     
     # Omitido temporalmente del dataset final (evaluado el 2026-04-25 como poco útil en producción).
-    # Se deja la lógica documentada en caso de ser requerida para la tesis o análisis de sensibilidad.
+    # Se deja la lógica documentada en caso de ser requerida para el informe o análisis de sensibilidad.
     df.drop(columns=["guri_imputado"], inplace=True)
     return df
 

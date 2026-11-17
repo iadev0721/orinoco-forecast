@@ -5,7 +5,7 @@
 ## Propósito
 
 Definir rigurosamente qué significa "éxito" para este modelo y producir las tablas y gráficas
-que constituirán el núcleo de la defensa de tesis.
+que constituirán el núcleo de la presentación del proyecto.
 
 ---
 
@@ -124,7 +124,7 @@ Si la mejora en MAE es < 5%:
   - ¿Justifica la complejidad computacional?
   - ¿Justifica la pérdida de interpretabilidad?
   
-Esta pregunta debe responderse honestamente en la tesis,
+Esta pregunta debe responderse honestamente en el informe,
 incluso si la respuesta es desfavorable para el LSTM.
 Un hallazgo honesto es más valioso que una conclusión sesgada.
 ```
@@ -148,7 +148,7 @@ Replicar para **cada modelo** (Naive, Seasonal Naive, SARIMA, LSTM, Transformer)
 | KGE-β | — | — | — | — | — |
 | Peak Timing (días) | — | — | — | — | — |
 
-La comparación visual de estas tablas es el **arma definitiva en la defensa de tesis**.
+La comparación visual de estas tablas es el **arma definitiva en la presentación del proyecto**.
 
 ---
 

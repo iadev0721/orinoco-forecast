@@ -6,7 +6,7 @@ Transformer para series temporales en PyTorch.
 El modelo toma una secuencia con forma (batch, lookback, n_features) y aprende
 qué días del pasado importan más para predecir un horizonte multistep.
 
-La implementación sigue la tesis:
+La implementación sigue el informe del proyecto:
     - Entrada: secuencias temporales ya escaladas.
     - Bloque lineal + positional encoding.
     - TransformerEncoder con self-attention.

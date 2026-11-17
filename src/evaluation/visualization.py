@@ -1,7 +1,7 @@
 """
 src/evaluation/visualization.py
 =================================
-Graficas de publicacion para la tesis sobre prediccion hidrologica.
+Graficas de publicacion para el proyecto sobre prediccion hidrologica.
 
 Estandar de salida: PNG 300 DPI (publicable en revista cientifica).
 Directorio de salida: results/figures/{experiment_name}/

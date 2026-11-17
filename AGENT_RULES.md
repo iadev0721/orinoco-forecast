@@ -1,14 +1,14 @@
 # AGENT_RULES.md — Mandamientos para Agentes Programadores
 
 > **LEER ANTES DE TOCAR CUALQUIER ARCHIVO.**
-> Este documento es el contrato entre los agentes de IA y la integridad científica de esta tesis.
+> Este documento es el contrato entre los agentes de IA y la integridad científica de este proyecto.
 > Violar estas reglas invalida métricas, destruye la reproducibilidad y compromete la defensa.
 
 ---
 
 ## IDENTIDAD DEL CONTEXTO
 
-Estás trabajando en una **tesis de pregrado sobre predicción hidrológica del río Orinoco**.
+Estás trabajando en un **proyecto de la asignatura Inteligencia Artificial: Aprendizaje Automático sobre predicción hidrológica del río Orinoco**.
 El código que escribas debe ser **DEFENDIBLE ante un jurado académico**.
 Cada decisión debe tener una justificación técnica e hidrológica.
 El modelo puede ser imperfecto; el proceso no puede serlo.
@@ -192,7 +192,7 @@ torch.cuda.empty_cache()
 ### R6: CONVENCIONES DE CÓDIGO 📐
 
 - **Idioma del código:** Inglés (variables, funciones, docstrings).
-- **Idioma de los comentarios:** Español (para contexto de tesis).
+- **Idioma de los comentarios:** Español (para contexto académico).
 - **Idioma de los nombres de carpetas y archivos:** Inglés (`data/`, `src/`, `models/`, etc.).
 - **Type hints** obligatorios en TODAS las funciones.
 - **Docstrings** en formato Google style.
@@ -297,7 +297,7 @@ Respuesta real basada en los datos reales de esa ejecución.
 | Scaler | MinMaxScaler | Preserva distribución, rango [0,1] |
 | Split strategy | Cronológico estricto | Serie temporal — no aleatorio |
 | Lookback inicial | 30 días | Verificar con cross-correlation en EDA |
-| Target (configurable) | Cualquier estación | Definido en `config.yaml → target_station`. No hay "default" fijo: la elección se justifica en la tesis según el problema a resolver. |
+| Target (configurable) | Cualquier estación | Definido en `config.yaml → target_station`. No hay "default" fijo: la elección se justifica en el informe según el problema a resolver. |
 | Loss function LSTM | MSE (base) → Pinball (cuantil) | Progresión de simple a probabilístico |
 
 ---

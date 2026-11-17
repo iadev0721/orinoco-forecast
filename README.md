@@ -8,25 +8,29 @@
 [![MLflow](https://img.shields.io/badge/MLflow-tracking-green.svg)](https://mlflow.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
+Proyecto de la asignatura **Inteligencia Artificial: Aprendizaje Automático** (docente: Jesús Larez).
+Equipo: Ignacio Aliendres, Samuel Guzmán, Juan Márquez y María Sandoval.
+
 ## Visión Científica
 
-Modelado predictivo multiestación del nivel hidrométrico del río Orinoco con horizonte de **7 días (t+7)**, utilizando una arquitectura progresiva:
+Modelado predictivo multiestación del nivel hidrométrico del río Orinoco con horizontes de **7 y 15 días (t+7, t+15)**, utilizando una arquitectura progresiva:
 
 > **Baseline Estadístico → LSTM (Keras) → Transformer (PyTorch)**
 
-## Hipótesis de Tesis
+## Hipótesis del Proyecto
 
 > Los niveles hidrométricos aguas arriba del Orinoco contienen información predictiva suficiente
-> para anticipar el nivel en **la estación target elegida** con un horizonte de 7 días, superando
+> para anticipar el nivel en **la estación target elegida** con horizontes de 7 y 15 días, superando
 > significativamente un modelo naive y un baseline estadístico, particularmente durante los
 > **períodos de transición hidrológica** (ascenso mayo-julio, descenso octubre-diciembre).
-> La elección de la estación target y su justificación hidrológica forma parte del análisis de la tesis.
+> La elección de la estación target y su justificación hidrológica forma parte del análisis del proyecto.
 
 ## Dataset
 
 | Campo | Detalle |
 |-------|---------|
-| Rango temporal | 1974-01-01 a 2025-02-24 (~18,683 registros diarios) |
+| Rango del archivo crudo | 1974-01-01 a 2025-02-24 (~18,683 registros diarios) |
+| Período usado en el modelado | 1981-01-01 a 2025-02-24 (16,126 días); 1974–1980 se excluye |
 | Estaciones | Puerto Ayacucho · Caicara · Ciudad Bolívar · Palúa |
 | Formato Oficial | `data/raw/dataset_orinoco_true_raw.csv` (CSV, cronológico) |
 | Integridad | Caicara (0 NaNs), C. Bolívar (0 NaNs), Palúa (17 NaNs), Ayacucho (700 NaNs) |
@@ -53,9 +57,11 @@ Fase 5 → Evaluación comparativa por régimen hidrológico
 
 | Split | Rango | Propósito |
 |-------|-------|-----------|
-| Train | 1974-01-01 — 2015-12-31 | Ajuste de scaler + entrenamiento |
-| Validation | 2016-01-01 — 2020-12-31 | Early stopping, tuning |
-| Test | 2021-01-01 — 2025-02-24 | Evaluación final (intocable) |
+| Train | 1981-01-01 — 2018-12-31 (13,879 días) | Ajuste de scaler + entrenamiento |
+| Validation | 2019-01-01 — 2022-06-30 (1,277 días) | Early stopping, tuning |
+| Test | 2022-07-01 — 2025-02-24 (970 días) | Evaluación final (intocable) |
+
+Fuente: `config.yaml` (`train_end`, `val_end`).
 
 ## Estructura del Repositorio
 
@@ -174,7 +180,7 @@ Ver [`AGENT_RULES.md`](./AGENT_RULES.md) — contiene los mandamientos que todo 
 
 ## Licencia
 
-Copyright 2025 — Proyecto de Tesis de Pregrado.
+Copyright 2025 — Proyecto de la asignatura Inteligencia Artificial: Aprendizaje Automático.
 
 Distribuido bajo la licencia **Apache 2.0**. Ver [`LICENSE`](./LICENSE) para más detalles.
 
@@ -188,4 +194,4 @@ You may obtain a copy of the License at
 
 ---
 
-> *"La diferencia entre un proyecto que aprueba y una tesis que marca precedente no está en la complejidad del modelo. Está en el rigor del proceso."*
+> *"La diferencia entre un proyecto que aprueba y uno que marca precedente no está en la complejidad del modelo. Está en el rigor del proceso."*

@@ -68,7 +68,7 @@ Si el lag total origen→target supera 30 días, ajustar config.yaml.
 ¿Existe evidencia de cambio climático en los datos?
 ¿Los máximos anuales muestran tendencia creciente/decreciente en 50 años?
 Visualizar: serie de máximos anuales + regresión lineal + Mann-Kendall test.
-Relevancia para la tesis: ¿el modelo entrenado en datos históricos será válido hoy?
+Relevancia para el proyecto: ¿el modelo entrenado en datos históricos será válido hoy?
 ```
 
 ### PC-01-05: Outliers y Distribución por Régimen
